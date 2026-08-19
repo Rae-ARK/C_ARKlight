@@ -16,6 +16,43 @@ Each stage lists: what it does, what it deliberately does *not* yet
 do, its test fixture source, and what makes it a reasonable unit for a
 student (or anyone) to actually finish before moving on.
 
+Not every fixture needs porting to be usable here. ARKlight-py's
+`examples/hello_site` is ordinary site-authoring code, not pipeline
+implementation, so it needs no C equivalent written by hand — the same
+file doubles as a manual smoke-test input for carklight from Stage 3
+onward (the first stage that produces a full IR tree from real input),
+the same way it already does for ARKlight-py itself.
+
+---
+
+## Stage -1 — Docs
+
+**Scope:** this repository's own documents
+(`PROPOSAL.md`, `ADDENDUM.md`, `TERMINOLOGY.md`, `ARKVM.md`,
+`DESIGN-NOTES.md`, this file) don't mirror anything in ARKlight-py —
+the Python project has no equivalent need to document a C ABI, a sync
+model, or a backend interface to itself. This stage covers keeping
+that set internally consistent as it's written: terminology settled
+in one document (e.g. `TERMINOLOGY.md`'s IR-vs-`.arklight` split, or
+`ADDENDUM.md` §4.1's backend interface) gets propagated to every other
+document still using older phrasing, rather than left to drift.
+
+**Test fixtures:** none — there's no code yet for a fixture to exercise.
+The check is editorial: every cross-reference between these documents
+still points at a section that exists and says what the reference
+claims it says.
+
+**Explicitly deferred:** anything Stages 0–8 cover below. This stage
+is only about the documents agreeing with each other and with the
+architecture they describe, before there's code to hold them
+accountable to it.
+
+**Why numbered before Stage 0 rather than left unnumbered:** it's
+still ordered, boundable work with its own "done" condition, the same
+as every other stage — it just produces prose instead of C, and
+happens continuously alongside whichever numbered stage is current
+rather than being finished once and left behind.
+
 ---
 
 ## Stage 0 — Data model & header (no logic)
@@ -107,9 +144,22 @@ string-generation-heavy stages after it.
 ## Stage 4 — HTML backend
 
 **Scope:** mirrors `arklight.backend.html.render` — the first stage
-producing actual output bytes. Tag mapping per component type,
+producing actual output bytes, and the first backend written against
+the `ArkBackend` interface (`ADDENDUM.md` §4.1): its `render` fills an
+`ArkBuildResult` from a validated IR tree, `init`/`postprocess`/
+`shutdown` left `NULL` in v1. Tag mapping per component type,
 attribute escaping, internal `Link`/`Image` href/src rewriting to
 relative file paths.
+
+Any later revision to ARKlight-py's HTML backend — a refactor of
+`arklight.backend.html.render` itself, or an htmx-based rewrite of the
+`on_click`/`behavior_target` vocabulary it renders — is not a special
+case for carklight to plan around ahead of time. It becomes eligible
+the same way any other feature does, per `PROPOSAL.md` §2 (shipped,
+then soaked through a subsequent ARKlight release unchanged), and
+lands here as a new implementation of the same `render` entry against
+the same interface, confined to `backends/html/` and never touching
+`backends/css/`, `backends/js/`, or `core/`.
 
 **Test fixtures:** `tests/test_html_backend.py` — deliberately the
 largest fixture file in the existing suite, which makes this stage the
@@ -136,15 +186,31 @@ of bug across three code paths at once.
 stylesheet, intrinsic-responsive-layout utility classes, custom
 `site.style()` classes) and `arklight.backend.js.render` (the tiny
 fixed behavior/action runtime — `BEHAVIOR_REGISTRY`/`ACTION_REGISTRY`).
-Grouped together because both are structurally "render a fixed,
-closed vocabulary as text," same shape as Stage 4 but smaller — doing
-HTML alone first means whatever string-generation lessons got learned
-there apply directly here instead of being learned three times over.
+Each is its own `ArkBackend` implementation (`ADDENDUM.md` §4.1) in
+its own `backends/css/`/`backends/js/` directory, same interface Stage
+4 already established. Grouped into one stage because both are
+structurally "render a fixed, closed vocabulary as text," same shape
+as Stage 4 but smaller — doing HTML alone first means whatever
+string-generation lessons got learned there apply directly here
+instead of being learned three times over.
+
+Of the two, CSS is the narrower port: a closed set of utility classes
+and a default stylesheet, with the least translation needed between
+ARKlight-py's shape and C's beyond ordinary buffer/ownership handling
+— it carries over closest to as-is of anything in v1. JS carries the
+same interface but a larger closed vocabulary
+(`BEHAVIOR_REGISTRY`/`ACTION_REGISTRY`), and — like the HTML backend
+refactor noted in Stage 4 — any future expansion of that vocabulary
+upstream (ARKlight's `v0.044` JS capability work, or an htmx-based
+`on_click`/`behavior_target` rewrite, per `PROPOSAL.md` §1's Milestones
+reference) syncs in on the same §2 schedule, as a new `render`
+implementation confined to `backends/js/`.
 
 **Test fixtures:** `tests/test_css_backend.py`, `tests/test_js_backend.py`.
 
-**Explicitly deferred:** `Backend.postprocess(...)` hook wiring beyond
-what's needed to satisfy existing fixtures; that's pipeline
+**Explicitly deferred:** `postprocess` hook wiring beyond what's
+needed to satisfy existing fixtures — both backends leave it `NULL`
+per §4.1 until something actually needs it; that's pipeline
 orchestration, not backend logic, and belongs conceptually with
 Stage 7's ABI wiring.
 
@@ -223,6 +289,7 @@ yet.
 
 | Stage | Mirrors (ARKlight-py) | Introduces | Fixture source |
 |---|---|---|---|
+| -1 | — (new to this repo) | doc cross-consistency | none — editorial |
 | 0 | — | struct model, alloc/free discipline | manual + memory-checker only |
 | 1 | `ir.normalize` | recursive tree transforms | `test_normalize.py` |
 | 2 | `ir.validate` | schema table, error propagation | `test_validate.py` |

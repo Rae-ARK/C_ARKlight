@@ -160,15 +160,59 @@ Why this shape specifically:
 - **No runtime ABI between backends is needed**, because nothing is
   dynamically loaded at runtime — everything resolves at *link* time.
   The only contract that needs versioning discipline is `.arklight`
-  itself (§2); the core-to-backend boundary is internal C linkage
-  (e.g. a plain `ArkBackend { .name, .render_fn, .init_fn, ... }`
-  function-pointer struct registered at compile time), not a public
-  API surface.
+  itself (§2); the core-to-backend boundary is internal C linkage, not
+  a public API surface (see §4.1).
 - **Slimming down later is a build flag, not a rewrite.** If a
   genuinely minimal HTML-only build is ever wanted, that's
   `-DCARKLIGHT_BACKEND_ANDROID=OFF` at CMake configure time, not an
   architecture change — the modularity needed for that is already
   present from day one, it's just a question of what gets linked in.
+
+### 4.1 The backend interface
+
+The core-to-backend boundary named above is a single, fixed contract
+every backend implements, rather than each backend exposing its own
+one-off set of functions for `core/` to call by name:
+
+```c
+typedef struct ArkBackend {
+    const char* name;                  // "html", "css", "js", ...
+    uint32_t    flag;                  // one of ARK_BACKEND_* (PROPOSAL.md §3.4)
+    int  (*init)(struct ArkBackend* self, char** err_out);        // optional
+    int  (*render)(struct ArkBackend* self, const ArkSite* site,
+                    ArkBuildResult* out, char** err_out);         // required
+    int  (*postprocess)(struct ArkBackend* self, ArkBuildResult* out,
+                          char** err_out);                        // optional
+    void (*shutdown)(struct ArkBackend* self);                    // optional
+} ArkBackend;
+```
+
+`ark_build` (`PROPOSAL.md` §3.4) doesn't contain any HTML-, CSS-, or
+JS-specific logic itself. It walks a fixed, compile-time-registered
+array of `ArkBackend` entries — one per `backends/<name>/` directory
+in §4's layout — and calls `render` (then `postprocess`, if non-`NULL`)
+on each entry whose `flag` is set in the caller's `backend_flags`, in
+registration order. Adding a backend that isn't on the roadmap yet is
+a new directory, a new CMake target, and one new array entry — never a
+change to `ark_build`'s own logic, and never a reason to touch another
+backend's source.
+
+This is what makes §4's directory split load-bearing rather than
+cosmetic: each `backends/<name>/` directory owns exactly one
+`ArkBackend` implementation, builds and tests in isolation, and has no
+visibility into any other backend's internals. `core/` only ever calls
+through the struct above — never into a specific backend's private
+functions — so disabling one (`-DCARKLIGHT_BACKEND_ANDROID=OFF`),
+replacing one, or porting a revised version of one from ARKlight-py
+(`IMPLEMENTATION.md` Stages 4–5) touches exactly that backend's
+directory and nothing else.
+
+`init`/`shutdown` are part of the struct from v1 even though HTML,
+CSS, and JS all leave them `NULL` and do their setup inline inside
+`render` — they exist so a backend with real lifecycle needs (a future
+desktop backend opening a window-toolkit handle, say) fits the same
+contract everything else already does, instead of the interface
+needing a shape change the day one finally requires them.
 
 ---
 
@@ -181,6 +225,7 @@ Why this shape specifically:
 | "ARKlight VM" | Not named in the original proposal | Named explicitly: compile-time multi-target dispatcher, no runtime interpretation, ever |
 | Desktop/Android backends | Package already-*built* HTML/CSS/JS output | Could eventually consume `.arklight` directly — noted as a later option, not decided |
 | Build system | `make` / `make install` | CMake (modular internal targets) + CPack (platform packaging), same external `.so` surface |
+| Core-to-backend dispatch | Implied, unspecified | Fixed `ArkBackend` interface (§4.1), compile-time-registered array, no per-backend special-casing in `ark_build` |
 | Future JS pure-engine (§4/§4.1 of the original proposal) | Permanent parallel reimplementation, alongside a native binding | Likely unnecessary long-term once `.arklight` exists — JS only needs to *emit* the file |
 
 Everything in `PROPOSAL.md` §1 (upstream/downstream
