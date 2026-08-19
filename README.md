@@ -55,6 +55,10 @@ carklight (C)       ──  moves slowly, on purpose
 **carklight v1 tracks ARKlight v0.0431**, as released. Nothing newer,
 nothing experimental. What that includes is below.
 
+## Status
+
+A work in progress. Not ready to sortie yet.
+
 ---
 
 ## Get started
