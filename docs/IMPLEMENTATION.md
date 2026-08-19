@@ -57,12 +57,20 @@ rather than being finished once and left behind.
 
 ## Stage 0 — Data model & header (no logic)
 
+**Status: implemented.** `include/carklight.h`, `core/`, and
+`tests/test_stage0_alloc.c`.
+
 **Scope:** `carklight.h` — the `ArkNode`/`ArkSite`/`ArkBuildResult`
 opaque struct declarations, the `component_type_t` enum (hand-written
 for now; generation is Stage 8), and a matched `ark_*_new`/`ark_free_*`
 pair for every type. No pipeline logic runs. No test fixtures apply —
 the "test" is: build a tree by hand, free it, run under a memory
 checker (`valgrind`/ASan), confirm zero leaks and zero double-frees.
+Implemented as `tests/test_stage0_alloc.c`, run plain via `ctest` and
+under LeakSanitizer/AddressSanitizer via
+`-DCARKLIGHT_ENABLE_ASAN=ON` at configure time (valgrind works too,
+against the same binary — ASan is the default here only because it
+needs no separately installed tool).
 
 **Explicitly deferred:** any actual normalize/validate/render logic;
 IR (de)serialization (Stage 7); the public `ark_load_ir` contract

@@ -1,0 +1,4 @@
+add_executable(test_stage0_alloc test_stage0_alloc.c)
+target_link_libraries(test_stage0_alloc PRIVATE carklight_core)
+
+add_test(NAME stage0_alloc COMMAND test_stage0_alloc)
