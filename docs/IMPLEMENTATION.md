@@ -1,6 +1,6 @@
 # carklight — Implementation Plan
 
-Companion to [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md). This
+Companion to [`PROPOSAL.md`](./PROPOSAL.md). This
 document breaks the C port into stages that are each independently
 buildable, independently testable against ARKlight-py's own fixtures,
 and ordered so that later stages never have to debug an unstable
@@ -176,7 +176,7 @@ correctness questions from earlier stages.
 
 **Scope:** the seam every other language eventually depends on.
 Implements `ark_load_ir` — deserializing the canonical IR byte format
-(`CARKLIGHT-PROPOSAL.md` §3.2/§3.4) into the Stage-0 struct model —
+(`PROPOSAL.md` §3.2/§3.4) into the Stage-0 struct model —
 and finalizes `ark_build`/`ark_result_*`/`ark_write_output` as the
 actual, stable, documented public entry points. `ark_load_root` (the
 lower-level, non-primary escape hatch per the proposal's corrected
@@ -234,5 +234,5 @@ yet.
 | 8 | (new, optional) | codegen from live `SCHEMA` | none — tooling, not pipeline |
 
 Stages 0–7 are what "carklight v1, baseline ARKlight v0.0431" actually
-consists of, per `CARKLIGHT-PROPOSAL.md` §6. Stage 8 is infrastructure
+consists of, per `PROPOSAL.md` §6. Stage 8 is infrastructure
 for carklight v2 and beyond.

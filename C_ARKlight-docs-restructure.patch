@@ -1,0 +1,548 @@
+diff --git a/README (2).md b/README.md
+similarity index 78%
+rename from README (2).md
+rename to README.md
+index a4f6312..613a8ef 100644
+--- a/README (2).md	
++++ b/README.md
+@@ -24,10 +24,15 @@ ark_write_output(result, "ARK", &err);
+ That's the whole surface most callers ever touch. `bytes`/`len` here
+ are the contents of a `.arklight` file — the machine-facing encoding
+ of a site's IR. See
+-[`CARKLIGHT-TERMINOLOGY.md`](./CARKLIGHT-TERMINOLOGY.md) if "IR" vs.
+-"`.arklight`" isn't already familiar: short version, IR is for
+-humans, `.arklight` is for machines, and only the latter ever crosses
+-this boundary.
++[`docs/TERMINOLOGY.md`](./docs/TERMINOLOGY.md) if "IR" vs.
++"`.arklight`" isn't already familiar: short version, IR and
++`.arklight` both exist and both matter, but for different readers —
++IR is the human-facing, conceptual tree (what shows up in docs,
++diagrams, and debug output), `.arklight` is the binary, machine-facing
++encoding of that same tree (what's actually portable — versioned,
++self-describing, safe to write to disk and hand to a different
++process, possibly a different language's binding, later). Only
++`.arklight` ever crosses this boundary; IR never does.
+ 
+ ---
+ 
+@@ -71,7 +76,7 @@ tree is modular — one directory and one CMake target per backend
+ later `backends/desktop/`, `backends/android/`) — but the externally
+ visible artifact is unchanged: one `libcarklight.so`/`.dll`/`.dylib`
+ plus `carklight.h`. See
+-[`CARKLIGHT-ADDENDUM.md`](./CARKLIGHT-ADDENDUM.md) §4 for why it's
++[`docs/ADDENDUM.md`](./docs/ADDENDUM.md) §4 for why it's
+ shaped this way.
+ 
+ ---
+@@ -97,14 +102,14 @@ One boundary in, one function to build, one to pack. Every language
+ binding — Python, JavaScript, anything with C FFI — talks to carklight
+ through the same `.arklight` file: the machine-facing encoding of a
+ site's IR, described in full in
+-[`CARKLIGHT-ADDENDUM.md`](./CARKLIGHT-ADDENDUM.md) §2, with the
++[`docs/ADDENDUM.md`](./docs/ADDENDUM.md) §2, with the
+ broader architecture in
+-[`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md).
++[`docs/PROPOSAL.md`](./docs/PROPOSAL.md).
+ 
+ carklight's own C frontend is the one exception: it builds and
+ consumes its own native `ArkNode*` tree directly, in-process, and
+ never round-trips through a `.arklight` file at all (`ark_load_root`,
+-`CARKLIGHT-PROPOSAL.md` §3.4).
++`docs/PROPOSAL.md` §3.4).
+ 
+ ---
+ 
+@@ -122,9 +127,9 @@ Everything shipped in ARKlight v0.0431:
+ - `.ark` bundles — sealed by default, plain on request.
+ 
+ Nothing from ARKlight's in-progress work is here yet. That's
+-intentional — see [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md)
++intentional — see [`docs/PROPOSAL.md`](./docs/PROPOSAL.md)
+ for the sync model, and
+-[`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md) for how
++[`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md) for how
+ this was built, stage by stage.
+ 
+ ---
+@@ -147,16 +152,19 @@ is the same.
+ 
+ ## Docs map
+ 
+-- [`CARKLIGHT-TERMINOLOGY.md`](./CARKLIGHT-TERMINOLOGY.md) — IR vs.
++All long-form docs now live under [`docs/`](./docs):
++
++- [`docs/TERMINOLOGY.md`](./docs/TERMINOLOGY.md) — IR vs.
+   `.arklight`, start here if a term is unclear.
+-- [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md) — architecture,
++- [`docs/PROPOSAL.md`](./docs/PROPOSAL.md) — architecture,
+   sync model, C ABI surface.
+-- [`CARKLIGHT-ADDENDUM.md`](./CARKLIGHT-ADDENDUM.md) — the `.arklight`
++- [`docs/ADDENDUM.md`](./docs/ADDENDUM.md) — the `.arklight`
+   file format, the compile-time model, modular-internal build.
+-- [`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md) —
++- [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md) —
+   staged build-out, Stage -1 through Stage 8.
+ - [`docs/DESIGN-NOTES.md`](./docs/DESIGN-NOTES.md) — later backends
+-  (desktop, Android).
++  (desktop, Android) and the internal GUI library they may share.
++  Forward-looking notes only — nothing here is committed or built yet.
+ 
+ ---
+ 
+diff --git a/carklight-proposal/README.md b/carklight-proposal/README.md
+deleted file mode 100644
+index d909b38..0000000
+--- a/carklight-proposal/README.md
++++ /dev/null
+@@ -1,126 +0,0 @@
+-# carklight
+-
+-**The compiler core behind ARKlight.**
+-Written in C. Stable by design. Callable from anywhere.
+-
+----
+-
+-## Overview
+-
+-carklight takes an already-built ARKlight site — normalized,
+-validated, expressed as intent, not markup — and turns it into real
+-files: HTML, CSS, JavaScript, and a sealed `.ark` bundle.
+-
+-It does one job, and it does it in C: a small, dependency-free
+-library behind a stable ABI. No interpreter. No runtime. Just a
+-compiler, and a header any language can link against.
+-
+-```c
+-ArkSite* site = ark_load_ir(ir_bytes, ir_len, &err);
+-ArkBuildResult* result = ark_build(site, 0, &err);
+-ark_write_output(result, "ARK", &err);
+-```
+-
+-That's the whole surface most callers ever touch.
+-
+----
+-
+-## Where it fits
+-
+-ARKlight, the Python project, is where sites are authored and where
+-the language evolves — new components, new backend behavior, the
+-whole roadmap. carklight doesn't try to keep pace with that. It picks
+-up only what's already shipped, and stayed unchanged through another
+-release.
+-
+-```
+-ARKlight (Python)  ──  moves fast, defines what's next
+-       │
+-       │  ships, then stays unchanged for a release
+-       ▼
+-carklight (C)       ──  moves slowly, on purpose
+-```
+-
+-**carklight v1 tracks ARKlight v0.0431**, as released. Nothing newer,
+-nothing experimental. What that includes is below.
+-
+----
+-
+-## Get started
+-
+-```bash
+-make              # libcarklight.a, libcarklight.so
+-make test          # runs against ARKlight's own test fixtures
+-make install        # installs the header, the libraries, a .pc file
+-```
+-
+-Zero external dependencies. No crypto library, no build system beyond
+-`make`. If it compiles, it links.
+-
+----
+-
+-## The API
+-
+-```c
+-#include "carklight.h"
+-
+-char* err = NULL;
+-
+-ArkSite* site = ark_load_ir(ir_bytes, ir_len, &err);
+-ArkBuildResult* result = ark_build(site, /* default backends */ 0, &err);
+-
+-ark_write_output(result, "ARK", &err);
+-ark_pack("ARK", "site.ark", /* passphrase */ NULL, /* plain */ 0, &err);
+-
+-ark_free_result(result);
+-ark_free_site(site);
+-```
+-
+-One boundary in, one function to build, one to pack. Every language
+-binding — Python, JavaScript, anything with C FFI — talks to carklight
+-through the same serialized IR, described in full in
+-[`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md).
+-
+----
+-
+-## What v1 includes
+-
+-Everything shipped in ARKlight v0.0431:
+-
+-- The full component set — layout, text, forms, tables, media,
+-  responsive images, native widgets, and more. Around 87 components
+-  in total.
+-- HTML, CSS, and JS backends, including the intrinsic-responsive
+-  layout classes and the closed behavior/action vocabulary.
+-- Page metadata — title, description, favicon, Open Graph.
+-- Custom CSS classes via `site.style(...)`.
+-- `.ark` bundles — sealed by default, plain on request.
+-
+-Nothing from ARKlight's in-progress work is here yet. That's
+-intentional — see [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md)
+-for the sync model, and
+-[`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md) for how
+-this was built, stage by stage.
+-
+----
+-
+-## Part of ARKlight
+-
+-carklight is the backend. It doesn't author sites, and it isn't where
+-you'd go to write one.
+-
+-- **[ARKlight](https://github.com/Rae-ARK/ARKlight)** — the Python
+-  package. Write your site here.
+-- **`@arklight/js`** — the JavaScript/TypeScript package. Same idea,
+-  for Node.
+-
+-Both can run entirely on their own, in pure Python or pure JS. Both
+-can also link straight into carklight instead. Either way, the output
+-is the same.
+-
+----
+-
+-## License
+-
+-Tracks upstream ARKlight's license — see
+-[Rae-ARK/ARKlight `LICENSE`](https://github.com/Rae-ARK/ARKlight/blob/alpha/LICENSE).
+diff --git a/CARKLIGHT-ADDENDUM.md b/docs/ADDENDUM.md
+similarity index 92%
+rename from CARKLIGHT-ADDENDUM.md
+rename to docs/ADDENDUM.md
+index d588ae0..c8b227c 100644
+--- a/CARKLIGHT-ADDENDUM.md
++++ b/docs/ADDENDUM.md
+@@ -1,7 +1,7 @@
+ # carklight — Addendum: `.arklight`, the compile-time model, and modular-internal packaging
+ 
+-Companion to [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md) and
+-[`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md). This
++Companion to [`PROPOSAL.md`](./PROPOSAL.md) and
++[`IMPLEMENTATION.md`](./IMPLEMENTATION.md). This
+ addendum revises three things from the original proposal in light of
+ follow-up discussion. It does not replace those documents — it
+ supersedes specific sections, noted inline.
+@@ -57,7 +57,7 @@ scheme), it needs, at minimum:
+   version number — so any consumer can reject or warn on an
+   incompatible file instead of misreading it or crashing on it.
+ - **A schema-generation tag embedded in the file**, tied to the
+-  sync/graduation model in `CARKLIGHT-PROPOSAL.md` §2. Since carklight
++  sync/graduation model in `PROPOSAL.md` §2. Since carklight
+   only ever tracks a `DONE`-and-soaked subset of ARKlight's schema at
+   any given version, a `.arklight` file needs to self-declare which
+   schema generation it was built against, so a consumer can tell
+@@ -99,13 +99,13 @@ site.arklight
+ carklight (C)   ── loads the file, dispatches to ONE target backend
+       │
+       ├── HTML/CSS/JS     (today)
+-      ├── desktop app     (v0.060, eventually — docs/DESIGN-NOTES.md)
+-      ├── android app     (v0.080, eventually — docs/DESIGN-NOTES.md)
++      ├── desktop app     (v0.060, eventually — DESIGN-NOTES.md)
++      ├── android app     (v0.080, eventually — DESIGN-NOTES.md)
+       └── ...whatever gets added later, same input file, same loader
+ ```
+ 
+ This also means the desktop/Android backends described in
+-`docs/DESIGN-NOTES.md` — which today operate on already-*built*
++`DESIGN-NOTES.md` — which today operate on already-*built*
+ HTML/CSS/JS output and package it into an installable — could
+ eventually consume `.arklight` directly instead, collapsing "build,
+ then separately package" into one stage with one canonical input.
+@@ -117,7 +117,7 @@ authoring package doesn't need its own compiler at all under this
+ model. It only needs to build a tree in JS and emit `.arklight` — the
+ same artifact Python already produces. This likely removes the need
+ for the original proposal's "pure engine, hand-written reimplementation
+-per language" (§4/§4.1 of `CARKLIGHT-PROPOSAL.md`) as a *permanent*
++per language" (§4/§4.1 of `PROPOSAL.md`) as a *permanent*
+ fixture, since there's less reason to avoid the compiled `.so` once
+ it's a small, portable, dependency-free binary. Worth revisiting that
+ non-goal later; not blocking anything today.
+@@ -147,6 +147,10 @@ carklight/
+                      linked together into one libcarklight.so
+ ```
+ 
++Whether `desktop/` and `android/` end up sharing one internal GUI
++implementation underneath, rather than being written independently,
++is an open idea, not a decision — see `DESIGN-NOTES.md`.
++
+ Why this shape specifically:
+ 
+ - **A backend rewrite stays contained.** Touching the HTML backend
+@@ -179,8 +183,8 @@ Why this shape specifically:
+ | Build system | `make` / `make install` | CMake (modular internal targets) + CPack (platform packaging), same external `.so` surface |
+ | Future JS pure-engine (§4/§4.1 of the original proposal) | Permanent parallel reimplementation, alongside a native binding | Likely unnecessary long-term once `.arklight` exists — JS only needs to *emit* the file |
+ 
+-Everything in `CARKLIGHT-PROPOSAL.md` §1 (upstream/downstream
+-relationship), §2 (sync model), and `CARKLIGHT-IMPLEMENTATION.md`'s
++Everything in `PROPOSAL.md` §1 (upstream/downstream
++relationship), §2 (sync model), and `IMPLEMENTATION.md`'s
+ staged build-out (Stages 0–8) still holds — this addendum only
+ touches the boundary shape and the packaging model, not the
+ core/upstream relationship or the implementation ordering.
+diff --git a/docs/DESIGN-NOTES.md b/docs/DESIGN-NOTES.md
+new file mode 100644
+index 0000000..afb8171
+--- /dev/null
++++ b/docs/DESIGN-NOTES.md
+@@ -0,0 +1,139 @@
++# carklight — Design Notes: desktop & Android backends
++
++Status: **forward-looking notes, not a spec.** Nothing in this
++document is scheduled, committed, or built. It exists so a shape that
++keeps coming up in discussion has one place to live, instead of being
++re-explained from scratch every time it's mentioned in
++[`ADDENDUM.md`](./ADDENDUM.md) or [`PROPOSAL.md`](./PROPOSAL.md).
++Treat every claim below as "this may or may not happen," not as a
++roadmap commitment. Contrast with `PROPOSAL.md`'s Milestones table,
++which does track real, versioned, `PLANNED`/`IN PROGRESS`/`DONE`
++work — this document is deliberately upstream of that table, for
++ideas that haven't earned a milestone yet.
++
++---
++
++## 1. Where this fits
++
++`ADDENDUM.md` §3 already places desktop (`v0.060`) and Android
++(`v0.080`) as later carklight backends, dispatched from `.arklight`
++the same way HTML/CSS/JS are today:
++
++```
++site.arklight
++      │
++      ▼
++carklight (C)   ── loads the file, dispatches to ONE target backend
++      │
++      ├── HTML/CSS/JS     (today)
++      ├── desktop app     (v0.060, eventually)
++      ├── android app     (v0.080, eventually)
++      └── ...
++```
++
++This note is about one specific, recurring idea for how those two
++backends might actually be shaped underneath — not a new pipeline
++stage, not a new file format, just a note on internal packaging.
++
++---
++
++## 2. One internal GUI library, shared by both
++
++The recurring idea: rather than a separate desktop-rendering
++implementation and a separate Android-rendering implementation,
++both backends could be thin, platform-specific shells around one
++shared internal library — informally, **`C_ARKlight_gui.so`** — that
++does the actual GUI-tree construction and event wiring once, in C,
++and gets linked into both a desktop build and an Android build.
++
++```
++                 site.arklight
++                       │
++                       ▼
++              carklight (C core)
++                       │
++                       ▼
++            C_ARKlight_gui.so  (shared, internal)
++              /                        \
++   desktop shell (v0.060)      android shell (v0.080)
++   (window/event glue for      (JNI/NDK glue for
++    the host OS)                 the Android runtime)
++```
++
++Why this shape, if it happens:
++
++- **One GUI-tree implementation, not two.** The desktop and Android
++  backends would otherwise duplicate a lot of the same
++  component-to-widget mapping logic. A shared internal `.so` means
++  that logic is written and tested once, matching the same discipline
++  `ADDENDUM.md` §4 already applies to HTML/CSS/JS — "a backend
++  rewrite stays contained," extended one level further to two
++  backends that are structurally closer to each other than either is
++  to HTML/CSS/JS.
++- **Internal, not public.** `C_ARKlight_gui.so` would sit *behind*
++  the desktop and Android backends, not beside `libcarklight` as
++  another public artifact. Callers still only ever see
++  `libcarklight.so`/`.dll`/`.dylib` + `carklight.h`, exactly as
++  `README.md` describes today — this is purely an internal
++  implementation detail of how those two future backends happen to
++  be built, not a new public surface, and not something any language
++  binding would link against directly.
++- **Portability is the actual point.** Because `carklight` backends
++  already dispatch off `.arklight` — the binary, machine-facing,
++  self-describing encoding of a site's IR (`TERMINOLOGY.md`) — a
++  shared GUI library consuming that same file means the desktop and
++  Android shells don't need their own bespoke ingestion path. The
++  same portability property that lets any language binding hand
++  carklight a `.arklight` file today is what would let one GUI
++  library serve two very different host platforms without forking
++  its input format. IR itself never enters this picture directly —
++  it's the human-facing shape used in docs and debugging, same as
++  everywhere else in the project (`TERMINOLOGY.md`); only `.arklight`
++  would ever reach `C_ARKlight_gui.so`, or any backend.
++
++---
++
++## 3. Explicitly not decided here
++
++- **Whether `C_ARKlight_gui.so` gets built at all**, versus the
++  desktop and Android backends simply being written separately if
++  that turns out simpler. Nothing about `ADDENDUM.md` §3's dispatch
++  model requires them to share an implementation — it's a plausible
++  shape, not a constraint the architecture imposes.
++- **Whether these backends consume `.arklight` directly**, or operate
++  on already-built HTML/CSS/JS output the way `ADDENDUM.md` §3 leaves
++  open as "a real architectural decision for later." This note leans
++  toward the direct-`.arklight` framing because it's the more
++  portable one, but `ADDENDUM.md` is explicit that this isn't decided
++  — repeated here rather than resolved.
++- **Naming, exact linkage, file layout.** `C_ARKlight_gui.so` is a
++  working name for discussion, not a filename commitment — it may
++  end up named, structured, or split differently than sketched here
++  by the time `v0.060`/`v0.080` are anywhere near real.
++- **Timeline.** Both backends remain `PLANNED`, not `IN PROGRESS`, on
++  ARKlight's own Milestones table (`PROPOSAL.md` §1). This document
++  doesn't change that status — it's a note for whenever that changes,
++  not a signal that it's changing soon.
++
++---
++
++## 4. Why this note exists now, ahead of any of it being real
++
++Two purely documentation-hygiene reasons, both about *this* repo's
++docs, not about pulling any implementation forward:
++
++- So `ADDENDUM.md` §3's existing forward-references to
++  `docs/DESIGN-NOTES.md` point at something real instead of a dead
++  link.
++- So the IR-vs-`.arklight` distinction (`TERMINOLOGY.md`) — for
++  humans, for machines, and specifically *why* the machine-facing
++  side is the portable one — has an explicit worked example in a
++  context (two very different host platforms, one shared internal
++  library) where that portability is the entire reason the idea is
++  worth writing down at all.
++
++Nothing here changes `PROPOSAL.md`'s sync model, `ADDENDUM.md`'s
++compile-time model, or `IMPLEMENTATION.md`'s staged build-out. This
++is additive, sits entirely downstream of all three, and is meant to
++be revised or discarded freely as `v0.060`/`v0.080` actually take
++shape.
+diff --git a/carklight-proposal/CARKLIGHT-IMPLEMENTATION.md b/docs/IMPLEMENTATION.md
+similarity index 97%
+rename from carklight-proposal/CARKLIGHT-IMPLEMENTATION.md
+rename to docs/IMPLEMENTATION.md
+index 482042d..c61551b 100644
+--- a/carklight-proposal/CARKLIGHT-IMPLEMENTATION.md
++++ b/docs/IMPLEMENTATION.md
+@@ -1,6 +1,6 @@
+ # carklight — Implementation Plan
+ 
+-Companion to [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md). This
++Companion to [`PROPOSAL.md`](./PROPOSAL.md). This
+ document breaks the C port into stages that are each independently
+ buildable, independently testable against ARKlight-py's own fixtures,
+ and ordered so that later stages never have to debug an unstable
+@@ -176,7 +176,7 @@ correctness questions from earlier stages.
+ 
+ **Scope:** the seam every other language eventually depends on.
+ Implements `ark_load_ir` — deserializing the canonical IR byte format
+-(`CARKLIGHT-PROPOSAL.md` §3.2/§3.4) into the Stage-0 struct model —
++(`PROPOSAL.md` §3.2/§3.4) into the Stage-0 struct model —
+ and finalizes `ark_build`/`ark_result_*`/`ark_write_output` as the
+ actual, stable, documented public entry points. `ark_load_root` (the
+ lower-level, non-primary escape hatch per the proposal's corrected
+@@ -234,5 +234,5 @@ yet.
+ | 8 | (new, optional) | codegen from live `SCHEMA` | none — tooling, not pipeline |
+ 
+ Stages 0–7 are what "carklight v1, baseline ARKlight v0.0431" actually
+-consists of, per `CARKLIGHT-PROPOSAL.md` §6. Stage 8 is infrastructure
++consists of, per `PROPOSAL.md` §6. Stage 8 is infrastructure
+ for carklight v2 and beyond.
+diff --git a/carklight-proposal/CARKLIGHT-PROPOSAL.md b/docs/PROPOSAL.md
+similarity index 100%
+rename from carklight-proposal/CARKLIGHT-PROPOSAL.md
+rename to docs/PROPOSAL.md
+diff --git a/CARKLIGHT-TERMINOLOGY.md b/docs/TERMINOLOGY.md
+similarity index 85%
+rename from CARKLIGHT-TERMINOLOGY.md
+rename to docs/TERMINOLOGY.md
+index 3558047..4c1102d 100644
+--- a/CARKLIGHT-TERMINOLOGY.md
++++ b/docs/TERMINOLOGY.md
+@@ -1,8 +1,8 @@
+ # carklight — Terminology: IR vs. `.arklight`
+ 
+ Status: canonical, effective as of Stage -1 (see
+-[`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md)).
+-Supersedes any place in `CARKLIGHT-PROPOSAL.md`, `CARKLIGHT-ADDENDUM.md`,
++[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)).
++Supersedes any place in `PROPOSAL.md`, `ADDENDUM.md`,
+ or `README.md` that still uses "IR" and "`.arklight`" interchangeably.
+ This is a short, standalone doc on purpose — it's the one page every
+ other doc should agree with, not a place to re-litigate the pipeline.
+@@ -25,7 +25,7 @@ source-level tree and whatever a backend eventually produces.
+ "IR" (Intermediate Representation) names the *conceptual*,
+ backend-independent tree — type/props/children, modeling intent
+ rather than markup — that sits between validation and codegen in the
+-pipeline (`CARKLIGHT-PROPOSAL.md` §3.1's "Website IR" stage). IR is
++pipeline (`PROPOSAL.md` §3.1's "Website IR" stage). IR is
+ what:
+ 
+ - shows up in docs and diagrams describing the pipeline
+@@ -47,7 +47,7 @@ mandated by this doc; that's a tooling choice (e.g. `arklight inspect
+ 
+ ## `.arklight` — the machine-facing intermediary
+ 
+-`.arklight` (`CARKLIGHT-ADDENDUM.md` §2) is the *binary encoding* of
++`.arklight` (`ADDENDUM.md` §2) is the *binary encoding* of
+ that same tree — magic bytes, format version, schema-generation tag,
+ string table — built specifically to cross a process boundary, outlive
+ one build, and be read by a different program than the one that wrote
+@@ -70,7 +70,7 @@ The public loading entry point on the C ABI is renamed to match, so
+ the name itself stops implying that IR is the wire format:
+ 
+ ```c
+-// was (CARKLIGHT-PROPOSAL.md §3.4, pre-addendum):
++// was (PROPOSAL.md §3.4, pre-addendum):
+ ArkSite* ark_load_ir(const uint8_t* ir_bytes, size_t len, char** err_out);
+ 
+ // now:
+@@ -81,7 +81,7 @@ Signature shape is unchanged — bytes in, length, an out-param for
+ errors. Only the name changes, because it was the name doing the
+ conflating, not the mechanism.
+ 
+-`ark_load_root` (`CARKLIGHT-PROPOSAL.md` §3.4/§4) is unaffected by any
++`ark_load_root` (`PROPOSAL.md` §3.4/§4) is unaffected by any
+ of this — it was never IR-shaped or `.arklight`-shaped to begin with.
+ It ingests an already-built native `ArkNode*` tree in-process, which
+ is a third, narrower thing: C's own escape hatch, not an intermediary
+@@ -94,12 +94,12 @@ at all.
+ | Audience | humans | machines |
+ | Form | conceptual tree / debug dump | binary file on disk |
+ | Lifespan | exists for the moment it's read | outlives a process, versioned, portable |
+-| Needs a spec / version / magic bytes? | no | yes — `CARKLIGHT-ADDENDUM.md` §2 |
++| Needs a spec / version / magic bytes? | no | yes — `ADDENDUM.md` §2 |
+ | Crosses the C ABI boundary? | no, not directly | yes — the only thing that does |
+ | Loaded via | — (read/discussed, not "loaded") | `ark_load_arklight()` |
+ | Produced by | every stage of the pipeline, conceptually | one specific encode step, per language frontend |
+ 
+-This document is the tie-breaker anywhere `CARKLIGHT-PROPOSAL.md`,
+-`CARKLIGHT-ADDENDUM.md`, or `README.md` still show the old conflated
++This document is the tie-breaker anywhere `PROPOSAL.md`,
++`ADDENDUM.md`, or `README.md` still show the old conflated
+ phrasing. Bringing those into line with it is exactly what Stage -1
+-(docs-only) is for — see `CARKLIGHT-IMPLEMENTATION.md`.
++(docs-only) is for — see `IMPLEMENTATION.md`.

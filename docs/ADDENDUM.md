@@ -1,7 +1,7 @@
 # carklight — Addendum: `.arklight`, the compile-time model, and modular-internal packaging
 
-Companion to [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md) and
-[`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md). This
+Companion to [`PROPOSAL.md`](./PROPOSAL.md) and
+[`IMPLEMENTATION.md`](./IMPLEMENTATION.md). This
 addendum revises three things from the original proposal in light of
 follow-up discussion. It does not replace those documents — it
 supersedes specific sections, noted inline.
@@ -57,7 +57,7 @@ scheme), it needs, at minimum:
   version number — so any consumer can reject or warn on an
   incompatible file instead of misreading it or crashing on it.
 - **A schema-generation tag embedded in the file**, tied to the
-  sync/graduation model in `CARKLIGHT-PROPOSAL.md` §2. Since carklight
+  sync/graduation model in `PROPOSAL.md` §2. Since carklight
   only ever tracks a `DONE`-and-soaked subset of ARKlight's schema at
   any given version, a `.arklight` file needs to self-declare which
   schema generation it was built against, so a consumer can tell
@@ -99,13 +99,13 @@ site.arklight
 carklight (C)   ── loads the file, dispatches to ONE target backend
       │
       ├── HTML/CSS/JS     (today)
-      ├── desktop app     (v0.060, eventually — docs/DESIGN-NOTES.md)
-      ├── android app     (v0.080, eventually — docs/DESIGN-NOTES.md)
+      ├── desktop app     (v0.060, eventually — DESIGN-NOTES.md)
+      ├── android app     (v0.080, eventually — DESIGN-NOTES.md)
       └── ...whatever gets added later, same input file, same loader
 ```
 
 This also means the desktop/Android backends described in
-`docs/DESIGN-NOTES.md` — which today operate on already-*built*
+`DESIGN-NOTES.md` — which today operate on already-*built*
 HTML/CSS/JS output and package it into an installable — could
 eventually consume `.arklight` directly instead, collapsing "build,
 then separately package" into one stage with one canonical input.
@@ -117,7 +117,7 @@ authoring package doesn't need its own compiler at all under this
 model. It only needs to build a tree in JS and emit `.arklight` — the
 same artifact Python already produces. This likely removes the need
 for the original proposal's "pure engine, hand-written reimplementation
-per language" (§4/§4.1 of `CARKLIGHT-PROPOSAL.md`) as a *permanent*
+per language" (§4/§4.1 of `PROPOSAL.md`) as a *permanent*
 fixture, since there's less reason to avoid the compiled `.so` once
 it's a small, portable, dependency-free binary. Worth revisiting that
 non-goal later; not blocking anything today.
@@ -146,6 +146,10 @@ carklight/
   CMakeLists.txt     each backend: add_library(carklight_<name> STATIC ...)
                      linked together into one libcarklight.so
 ```
+
+Whether `desktop/` and `android/` end up sharing one internal GUI
+implementation underneath, rather than being written independently,
+is an open idea, not a decision — see `DESIGN-NOTES.md`.
 
 Why this shape specifically:
 
@@ -179,8 +183,8 @@ Why this shape specifically:
 | Build system | `make` / `make install` | CMake (modular internal targets) + CPack (platform packaging), same external `.so` surface |
 | Future JS pure-engine (§4/§4.1 of the original proposal) | Permanent parallel reimplementation, alongside a native binding | Likely unnecessary long-term once `.arklight` exists — JS only needs to *emit* the file |
 
-Everything in `CARKLIGHT-PROPOSAL.md` §1 (upstream/downstream
-relationship), §2 (sync model), and `CARKLIGHT-IMPLEMENTATION.md`'s
+Everything in `PROPOSAL.md` §1 (upstream/downstream
+relationship), §2 (sync model), and `IMPLEMENTATION.md`'s
 staged build-out (Stages 0–8) still holds — this addendum only
 touches the boundary shape and the packaging model, not the
 core/upstream relationship or the implementation ordering.

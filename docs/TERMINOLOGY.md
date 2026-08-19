@@ -1,8 +1,8 @@
 # carklight — Terminology: IR vs. `.arklight`
 
 Status: canonical, effective as of Stage -1 (see
-[`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md)).
-Supersedes any place in `CARKLIGHT-PROPOSAL.md`, `CARKLIGHT-ADDENDUM.md`,
+[`IMPLEMENTATION.md`](./IMPLEMENTATION.md)).
+Supersedes any place in `PROPOSAL.md`, `ADDENDUM.md`,
 or `README.md` that still uses "IR" and "`.arklight`" interchangeably.
 This is a short, standalone doc on purpose — it's the one page every
 other doc should agree with, not a place to re-litigate the pipeline.
@@ -25,7 +25,7 @@ source-level tree and whatever a backend eventually produces.
 "IR" (Intermediate Representation) names the *conceptual*,
 backend-independent tree — type/props/children, modeling intent
 rather than markup — that sits between validation and codegen in the
-pipeline (`CARKLIGHT-PROPOSAL.md` §3.1's "Website IR" stage). IR is
+pipeline (`PROPOSAL.md` §3.1's "Website IR" stage). IR is
 what:
 
 - shows up in docs and diagrams describing the pipeline
@@ -47,7 +47,7 @@ mandated by this doc; that's a tooling choice (e.g. `arklight inspect
 
 ## `.arklight` — the machine-facing intermediary
 
-`.arklight` (`CARKLIGHT-ADDENDUM.md` §2) is the *binary encoding* of
+`.arklight` (`ADDENDUM.md` §2) is the *binary encoding* of
 that same tree — magic bytes, format version, schema-generation tag,
 string table — built specifically to cross a process boundary, outlive
 one build, and be read by a different program than the one that wrote
@@ -70,7 +70,7 @@ The public loading entry point on the C ABI is renamed to match, so
 the name itself stops implying that IR is the wire format:
 
 ```c
-// was (CARKLIGHT-PROPOSAL.md §3.4, pre-addendum):
+// was (PROPOSAL.md §3.4, pre-addendum):
 ArkSite* ark_load_ir(const uint8_t* ir_bytes, size_t len, char** err_out);
 
 // now:
@@ -81,7 +81,7 @@ Signature shape is unchanged — bytes in, length, an out-param for
 errors. Only the name changes, because it was the name doing the
 conflating, not the mechanism.
 
-`ark_load_root` (`CARKLIGHT-PROPOSAL.md` §3.4/§4) is unaffected by any
+`ark_load_root` (`PROPOSAL.md` §3.4/§4) is unaffected by any
 of this — it was never IR-shaped or `.arklight`-shaped to begin with.
 It ingests an already-built native `ArkNode*` tree in-process, which
 is a third, narrower thing: C's own escape hatch, not an intermediary
@@ -94,12 +94,12 @@ at all.
 | Audience | humans | machines |
 | Form | conceptual tree / debug dump | binary file on disk |
 | Lifespan | exists for the moment it's read | outlives a process, versioned, portable |
-| Needs a spec / version / magic bytes? | no | yes — `CARKLIGHT-ADDENDUM.md` §2 |
+| Needs a spec / version / magic bytes? | no | yes — `ADDENDUM.md` §2 |
 | Crosses the C ABI boundary? | no, not directly | yes — the only thing that does |
 | Loaded via | — (read/discussed, not "loaded") | `ark_load_arklight()` |
 | Produced by | every stage of the pipeline, conceptually | one specific encode step, per language frontend |
 
-This document is the tie-breaker anywhere `CARKLIGHT-PROPOSAL.md`,
-`CARKLIGHT-ADDENDUM.md`, or `README.md` still show the old conflated
+This document is the tie-breaker anywhere `PROPOSAL.md`,
+`ADDENDUM.md`, or `README.md` still show the old conflated
 phrasing. Bringing those into line with it is exactly what Stage -1
-(docs-only) is for — see `CARKLIGHT-IMPLEMENTATION.md`.
+(docs-only) is for — see `IMPLEMENTATION.md`.

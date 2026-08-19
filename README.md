@@ -24,10 +24,15 @@ ark_write_output(result, "ARK", &err);
 That's the whole surface most callers ever touch. `bytes`/`len` here
 are the contents of a `.arklight` file — the machine-facing encoding
 of a site's IR. See
-[`CARKLIGHT-TERMINOLOGY.md`](./CARKLIGHT-TERMINOLOGY.md) if "IR" vs.
-"`.arklight`" isn't already familiar: short version, IR is for
-humans, `.arklight` is for machines, and only the latter ever crosses
-this boundary.
+[`docs/TERMINOLOGY.md`](./docs/TERMINOLOGY.md) if "IR" vs.
+"`.arklight`" isn't already familiar: short version, IR and
+`.arklight` both exist and both matter, but for different readers —
+IR is the human-facing, conceptual tree (what shows up in docs,
+diagrams, and debug output), `.arklight` is the binary, machine-facing
+encoding of that same tree (what's actually portable — versioned,
+self-describing, safe to write to disk and hand to a different
+process, possibly a different language's binding, later). Only
+`.arklight` ever crosses this boundary; IR never does.
 
 ---
 
@@ -71,7 +76,7 @@ tree is modular — one directory and one CMake target per backend
 later `backends/desktop/`, `backends/android/`) — but the externally
 visible artifact is unchanged: one `libcarklight.so`/`.dll`/`.dylib`
 plus `carklight.h`. See
-[`CARKLIGHT-ADDENDUM.md`](./CARKLIGHT-ADDENDUM.md) §4 for why it's
+[`docs/ADDENDUM.md`](./docs/ADDENDUM.md) §4 for why it's
 shaped this way.
 
 ---
@@ -97,14 +102,14 @@ One boundary in, one function to build, one to pack. Every language
 binding — Python, JavaScript, anything with C FFI — talks to carklight
 through the same `.arklight` file: the machine-facing encoding of a
 site's IR, described in full in
-[`CARKLIGHT-ADDENDUM.md`](./CARKLIGHT-ADDENDUM.md) §2, with the
+[`docs/ADDENDUM.md`](./docs/ADDENDUM.md) §2, with the
 broader architecture in
-[`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md).
+[`docs/PROPOSAL.md`](./docs/PROPOSAL.md).
 
 carklight's own C frontend is the one exception: it builds and
 consumes its own native `ArkNode*` tree directly, in-process, and
 never round-trips through a `.arklight` file at all (`ark_load_root`,
-`CARKLIGHT-PROPOSAL.md` §3.4).
+`docs/PROPOSAL.md` §3.4).
 
 ---
 
@@ -122,9 +127,9 @@ Everything shipped in ARKlight v0.0431:
 - `.ark` bundles — sealed by default, plain on request.
 
 Nothing from ARKlight's in-progress work is here yet. That's
-intentional — see [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md)
+intentional — see [`docs/PROPOSAL.md`](./docs/PROPOSAL.md)
 for the sync model, and
-[`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md) for how
+[`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md) for how
 this was built, stage by stage.
 
 ---
@@ -147,16 +152,19 @@ is the same.
 
 ## Docs map
 
-- [`CARKLIGHT-TERMINOLOGY.md`](./CARKLIGHT-TERMINOLOGY.md) — IR vs.
+All long-form docs now live under [`docs/`](./docs):
+
+- [`docs/TERMINOLOGY.md`](./docs/TERMINOLOGY.md) — IR vs.
   `.arklight`, start here if a term is unclear.
-- [`CARKLIGHT-PROPOSAL.md`](./CARKLIGHT-PROPOSAL.md) — architecture,
+- [`docs/PROPOSAL.md`](./docs/PROPOSAL.md) — architecture,
   sync model, C ABI surface.
-- [`CARKLIGHT-ADDENDUM.md`](./CARKLIGHT-ADDENDUM.md) — the `.arklight`
+- [`docs/ADDENDUM.md`](./docs/ADDENDUM.md) — the `.arklight`
   file format, the compile-time model, modular-internal build.
-- [`CARKLIGHT-IMPLEMENTATION.md`](./CARKLIGHT-IMPLEMENTATION.md) —
+- [`docs/IMPLEMENTATION.md`](./docs/IMPLEMENTATION.md) —
   staged build-out, Stage -1 through Stage 8.
 - [`docs/DESIGN-NOTES.md`](./docs/DESIGN-NOTES.md) — later backends
-  (desktop, Android).
+  (desktop, Android) and the internal GUI library they may share.
+  Forward-looking notes only — nothing here is committed or built yet.
 
 ---
 
