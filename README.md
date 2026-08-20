@@ -1,4 +1,4 @@
-# carklight
+# C_ARKlight
 
 **The compiler core behind ARKlight.**
 Written in C. Stable by design. Callable from anywhere.
