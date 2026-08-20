@@ -85,6 +85,17 @@ ArkNode* ark_container_arr(ArkNode** children, size_t n);
  * doing that, same convention the rest of this header uses. */
 void ark_free_node(ArkNode* node);
 
+/* --- Stage 1: normalize -----------------------------------------------
+ * Mirrors `arklight.ir.normalize`. Pure recursive tree transformation:
+ * no I/O, no schema knowledge (that's Stage 2). Mutates and returns
+ * `node` in place — every ArkNode* this returns is the same pointer
+ * passed in, with child arrays compacted; nothing is allocated or
+ * freed by this call. See core/normalize.c for why "flatten nested
+ * lists" / "wrap bare strings as Text" are no-ops in this statically-
+ * typed port: NULL children (the None/False-equivalent case) are the
+ * one thing this pass actually prunes. Idempotent; NULL in, NULL out. */
+ArkNode* ark_normalize(ArkNode* node);
+
 /* --- Site & build result: alloc/free scaffolding only for now --------
  * Real construction (ark_load_arklight, ark_build) is not part of
  * Stage 0 — see the file header above.

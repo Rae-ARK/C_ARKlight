@@ -87,15 +87,33 @@ means touching every stage downstream.
 
 ## Stage 1 — Normalize
 
+**Status: implemented.** `ark_normalize` in `carklight.h`,
+`core/normalize.c`, and `tests/test_normalize.c`.
+
 **Scope:** mirrors `arklight.ir.normalize` — flatten nested lists,
 drop `None`/`False`-equivalent children, wrap bare strings as `Text`
 nodes. Pure recursive tree transformation: `ArkNode* in → ArkNode*
 out`, no strings-as-output, no I/O.
 
-**Test fixtures:** `tests/test_normalize.py`, translated by hand into
-C test cases (build the "before" tree via Stage 0 constructors, run
-`ark_normalize`, assert the "after" tree matches the Python fixture's
-expected shape).
+Of those three Python behaviors, only one has a C-level
+representation to act on: Stage 0's constructors already force every
+child into a real, typed `ArkNode*` at construction time, so there is
+no "bare string child" and no "child that's itself a list" for a tree
+built through this header to ever contain — flatten-nested-lists and
+wrap-bare-strings are structurally unreachable rather than skipped.
+What does carry over is a `NULL` entry in a children array (e.g.
+`cond ? ark_text(...) : NULL`), the natural C encoding of a
+None/False-equivalent child; `ark_normalize` prunes those recursively
+and compacts `child_count` to match. Mutates and returns the same
+pointer in place — no allocation, no free, idempotent.
+
+**Test fixtures:** ARKlight-py's `tests/test_normalize.py` lives in a
+separate repository and isn't checked into C_ARKlight, so
+`tests/test_normalize.c` is a hand-written equivalent scoped to the
+one transform above (build a "before" tree via Stage 0 constructors
+with `NULL` entries standing in for omitted children, run
+`ark_normalize`, assert the pruned/compacted shape) rather than a
+line-for-line port of the Python fixture.
 
 **Explicitly deferred:** anything schema-aware — Stage 1 doesn't know
 or care whether a component type is valid, only how to flatten/prune

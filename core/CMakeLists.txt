@@ -2,6 +2,7 @@ add_library(carklight_core STATIC
     node.c
     site.c
     build_result.c
+    normalize.c
 )
 
 target_include_directories(carklight_core
