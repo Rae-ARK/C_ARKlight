@@ -15,17 +15,24 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 ================================================================================
-ADDITIONAL TERMS UNDER GPLv3 SECTION 7
+THE CARKLIGHT LINKING EXCEPTION
+Version 1.0, 2026
 ================================================================================
 
-Pursuant to Section 7 of the GNU General Public License, version 3
-("GPLv3"), the copyright holder(s) of carklight add the following
-additional terms, which apply on top of (and do not replace or
-narrow) the base GPLv3 terms below.
+Everyone is permitted to copy and distribute verbatim copies of this
+exception text, but changing it is not allowed.
+
+This Exception is an additional permission under Section 7 of the
+GNU General Public License, version 3 ("GPLv3"), granted by the
+copyright holder(s) of carklight. It applies on top of (and does not
+replace or narrow) the base GPLv3 terms below.
 
 carklight is a compiled C library with a stable ABI, meant to be
 linked into programs written in other languages -- that shape is why
-its terms differ from GPLv3 alone, and from ARKlight's own terms.
+it needs a linking exception rather than the scope carve-out used by
+its sibling project, ARKlight (the Python site compiler this library
+was extracted from). ARKlight's own terms are unaffected by this
+Exception; see ARKlight's LICENSE for those.
 
 1. Attribution on conveyed copies (GPLv3 Section 7(b)). Any copy of
    carklight's source code, or of a work based on it, that you convey
