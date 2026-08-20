@@ -334,6 +334,44 @@ int ark_html_render(ArkBackend* self, const ArkSite* site,
  * call; never NULL. */
 const ArkBackend* ark_html_backend(void);
 
+/* --- Stage 5a: CSS backend ---------------------------------------------
+ * Mirrors `arklight.backend.css.render` — the default, static
+ * stylesheet ARKlight-py ships so a freshly-generated site looks
+ * intentional with zero CSS written by the user. Confined to
+ * backends/css/, same interface Stage 4 established.
+ *
+ * Scope: of Stage 5's two backends (CSS + JS — see
+ * docs/IMPLEMENTATION.md), CSS is the narrower port and lands alone
+ * here as Stage 5a: a closed set of default rules and intrinsic-
+ * responsive-layout utility classes (.nav, .card, .stack, .cluster,
+ * .sidebar, .switcher, .grid, .center, .reel, ...), carried over
+ * verbatim from ARKlight-py's BASE_CSS since none of it is IR-
+ * dependent yet (no per-node `style=`/`class_name=` collection —
+ * that's future work, same as upstream). The JS backend (Stage 5b)
+ * is not part of this header yet.
+ *
+ * Unlike ark_html_render, this backend's output does not depend on
+ * `site` at all — see backends/css/render.c's header comment for why.
+ * A NULL `site` still produces the one output file; only a NULL `out`
+ * is an error, same convention as ark_html_render for that one case.
+ */
+
+/* Renders the default stylesheet to "styles.css", appending it to
+ * `out` via ark_build_result_add_file. Matches ArkBackend.render's
+ * signature; `self` and `site` are unused (see this block's comment
+ * above for why `site` specifically is never consulted). Returns 0 on
+ * success, non-zero on failure (NULL out, or a failed
+ * ark_build_result_add_file), setting *err_out (if non-NULL) to a
+ * malloc'd, caller-owned message. */
+int ark_css_render(ArkBackend* self, const ArkSite* site,
+                    ArkBuildResult* out, char** err_out);
+
+/* The compile-time-registered CSS ArkBackend instance itself —
+ * {name = "css", flag = ARK_BACKEND_CSS, render = ark_css_render,
+ * everything else NULL}. Returns the same static instance every
+ * call; never NULL. */
+const ArkBackend* ark_css_backend(void);
+
 #ifdef __cplusplus
 }
 #endif

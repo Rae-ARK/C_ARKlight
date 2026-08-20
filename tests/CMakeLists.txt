@@ -22,3 +22,8 @@ add_executable(test_html_backend test_html_backend.c)
 target_link_libraries(test_html_backend PRIVATE carklight_backend_html carklight_core)
 
 add_test(NAME stage4_html_backend COMMAND test_html_backend)
+
+add_executable(test_css_backend test_css_backend.c)
+target_link_libraries(test_css_backend PRIVATE carklight_backend_css carklight_core)
+
+add_test(NAME stage5a_css_backend COMMAND test_css_backend)
