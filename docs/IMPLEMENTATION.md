@@ -169,6 +169,9 @@ pattern every later fallible function reuses.
 
 ## Stage 3 — Website IR / build
 
+**Status: implemented.** `ark_ir_build`/`ark_ir_free` + accessors in
+`carklight.h`, `core/ir_build.c`, and `tests/test_ir_build.c`.
+
 **Scope:** mirrors `arklight.ir.build` — converts the validated,
 normalized ARK-AST-shaped tree into the backend-independent `IRNode`
 tree (type/props/children, modeling intent rather than HTML).
@@ -176,7 +179,25 @@ Mechanically the simplest stage relative to its neighbors, but it's
 the checkpoint the existing Python pipeline itself treats as a
 distinct stage, so carklight keeps the same seam.
 
-**Test fixtures:** `tests/test_ir_build.py`.
+Two divergences from ARKlight-py's literal shape, both already forced
+by decisions Stage 0 made, documented in full in carklight.h's Stage 3
+block comment: (1) `IRNode.children` is a heterogeneous `list[IRNode |
+str]` in Python because a text-only component's text argument is
+itself a bare-string child there — carklight's `ArkNode` already made
+text a scalar field, so `ark_ir_text()` is this port's equivalent of
+Python's `heading.children == ["Title"]`, and an `ArkIRNode`'s own
+children are always nested `ArkIRNode`, never strings. (2) ARKlight-py
+wraps one `IRNode` per named route under a `site_name`
+(`WebsiteIR`/`IRPage`); carklight's `ArkSite` (Stage 0) is a
+single-root scaffold with no route/site_name concept, so that
+wrapping layer has nowhere to live yet — deferred until `ArkSite`
+itself grows one, not part of this stage's scope.
+
+**Test fixtures:** `tests/test_ir_build.py` (Rae-ARK/ARKlight, cloned
+separately as reference), hand-ported to `tests/test_ir_build.c` case
+by case — basic shape, text-as-scalar (the one shape divergence
+above), and nested containers all port directly; the multiple-routes
+case has no port here, for the `site_name`/route reason above.
 
 **Explicitly deferred:** all rendering — this stage produces a tree,
 never text.

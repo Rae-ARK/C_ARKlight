@@ -40,6 +40,27 @@ struct ArkSite {
     ArkNode* root; /* owned */
 };
 
+/*
+ * Backing struct for the opaque ArkIRNode (Stage 3, core/ir_build.c).
+ * Field shape deliberately mirrors ArkNode above — same hand-written-
+ * fixed-fields-over-generic-props approach, same ownership discipline
+ * — rather than modeling ARKlight-py's literal `type: str, props:
+ * dict, children: list[IRNode | str]` shape. See the Stage 3 doc
+ * comment in carklight.h for why `text` is a scalar field here
+ * instead of a bare-string entry in `children`.
+ */
+struct ArkIRNode {
+    char* type;           /* owned copy of the component name, e.g. "Page" */
+
+    char* text;            /* Heading/Text/Button: the text-only child, as a scalar. NULL otherwise. */
+    char* prop_title;      /* Page only. NULL if absent. */
+    char* prop_on_click;   /* Button only. NULL if absent. */
+    int   prop_level;      /* Heading only. Unused (0) otherwise. */
+
+    ArkIRNode** children;  /* Page/Container: owned array of owned IR children. */
+    size_t      child_count;
+};
+
 struct ArkBuildResult {
     /* Empty in Stage 0 — no backend populates this yet (Stage 4/5).
      * Field(s) reserved so ark_free_result has real (if trivial) work

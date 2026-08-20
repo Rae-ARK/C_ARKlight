@@ -36,6 +36,7 @@ extern "C" {
 typedef struct ArkNode ArkNode;
 typedef struct ArkSite ArkSite;
 typedef struct ArkBuildResult ArkBuildResult;
+typedef struct ArkIRNode ArkIRNode;
 
 /* --- Component types -------------------------------------------------
  * Hand-written for Stage 0. Mirrors the shape of a handful of entries
@@ -113,6 +114,76 @@ ArkNode* ark_normalize(ArkNode* node);
  * err_out as NULL is fine when only the pass/fail result matters.
  * NULL node is valid (returns 0, *err_out untouched/NULL). */
 int ark_validate(const ArkNode* node, char** err_out);
+
+/* --- Stage 3: Website IR / build --------------------------------------
+ * Mirrors `arklight.ir.build` (ARKlight-py) — converts a validated,
+ * normalized ArkNode tree into the backend-independent IR: type/props/
+ * children, modeling intent rather than HTML. Callers are expected to
+ * have already run ark_normalize + ark_validate on `node`, same
+ * precondition as `build_website_ir` places on its Python caller —
+ * this stage doesn't re-check either.
+ *
+ * ARKlight-py's `IRNode.children` is a heterogeneous
+ * `list[IRNode | str]`, because a text-only component's (Heading/
+ * Text/Button) single text argument is itself stored as a bare-string
+ * *child*, not a prop. carklight's ArkNode already made text a scalar
+ * field at Stage 0 (see internal.h), so there's no bare-string child
+ * to carry through here — ark_ir_text() below is this port's
+ * equivalent of Python's `heading.children == ["Title"]`, and
+ * ArkIRNode's own children (ark_ir_child_count/ark_ir_child_at) are
+ * always nested ArkIRNode, never strings. See core/ir_build.c for the
+ * full mapping from ArkNode fields to IR props per component type.
+ *
+ * ARKlight-py's `WebsiteIR` additionally wraps one `IRNode` per named
+ * route under a `site_name` (`IRPage`/`WebsiteIR` in `ir/build.py`).
+ * carklight's ArkSite (Stage 0) is a single-root scaffold with no
+ * route/site_name concept yet, so that wrapping layer has nowhere to
+ * live in this port until ArkSite itself grows one — deferred, not
+ * part of Stage 3's scope here.
+ *
+ * Opaque, like ArkNode/ArkSite/ArkBuildResult — accessors below are
+ * how a caller (here, tests/test_ir_build.c) inspects the shape
+ * ARKlight-py's tests read directly off IRNode's dataclass fields.
+ */
+
+/* Builds a fresh ArkIRNode tree from `node`. Every ArkIRNode returned,
+ * anywhere in the tree, is freed via ark_ir_free(). NULL in, NULL out. */
+ArkIRNode* ark_ir_build(const ArkNode* node);
+
+/* Frees an IR node and, recursively, every child it owns. Safe to
+ * call with NULL (no-op), same convention as ark_free_node. */
+void ark_ir_free(ArkIRNode* node);
+
+/* The component name this node was built from, e.g. "Page",
+ * "Heading" — mirrors IRNode.type (`str` in ARKlight-py). Never NULL
+ * for a non-NULL node. */
+const char* ark_ir_type(const ArkIRNode* node);
+
+/* The text-only child's text, for nodes built from Heading/Text/
+ * Button — mirrors ARKlight-py's `children == [text]` shape for those
+ * types (see the block comment above). NULL for Page/Container, and
+ * for a NULL node. */
+const char* ark_ir_text(const ArkIRNode* node);
+
+/* Page's `title` prop. NULL if this isn't a Page node, or if the
+ * source ArkNode's title was itself NULL. */
+const char* ark_ir_prop_title(const ArkIRNode* node);
+
+/* Button's `on_click` prop. NULL if this isn't a Button node, or if
+ * the source ArkNode's on_click was itself NULL. */
+const char* ark_ir_prop_on_click(const ArkIRNode* node);
+
+/* Heading's `level` prop. Unused (0) for every other node type, same
+ * convention as ArkNode.level in internal.h. */
+int ark_ir_level(const ArkIRNode* node);
+
+/* Number of (nested-IRNode) children — 0 for Heading/Text/Button,
+ * which carry their payload via ark_ir_text() instead. 0 for a NULL
+ * node. */
+size_t ark_ir_child_count(const ArkIRNode* node);
+
+/* Child at `index`, or NULL if index >= ark_ir_child_count(node). */
+const ArkIRNode* ark_ir_child_at(const ArkIRNode* node, size_t index);
 
 /* --- Site & build result: alloc/free scaffolding only for now --------
  * Real construction (ark_load_arklight, ark_build) is not part of

@@ -12,3 +12,8 @@ add_executable(test_validate test_validate.c)
 target_link_libraries(test_validate PRIVATE carklight_core)
 
 add_test(NAME stage2_validate COMMAND test_validate)
+
+add_executable(test_ir_build test_ir_build.c)
+target_link_libraries(test_ir_build PRIVATE carklight_core)
+
+add_test(NAME stage3_ir_build COMMAND test_ir_build)

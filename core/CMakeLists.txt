@@ -4,6 +4,7 @@ add_library(carklight_core STATIC
     build_result.c
     normalize.c
     validate.c
+    ir_build.c
 )
 
 target_include_directories(carklight_core
