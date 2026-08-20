@@ -22,7 +22,6 @@
 
 #include "carklight.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 /* Where the HTML backend expects to find the generated stylesheet,
@@ -579,9 +578,11 @@ static const char* const ARK_BASE_CSS =
     "  background: var(--ark-border);\n"
     "}\n";
 
+/* Allocation goes through core/alloc.c's public ark_alloc as of
+ * Stage 5e — see carklight.h's "Stage 5e" block comment. */
 static char* err_dup(const char* msg) {
     size_t len = strlen(msg) + 1;
-    char* copy = malloc(len);
+    char* copy = ark_alloc(len);
     if (copy != NULL) {
         memcpy(copy, msg, len);
     }

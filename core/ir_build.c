@@ -21,24 +21,27 @@
  * ArkNode side, and assumes `node` already passed ark_normalize +
  * ark_validate (same precondition ARKlight-py's build_website_ir
  * places on its own caller).
+ *
+ * Allocation goes through core/alloc.c's ark_alloc/ark_calloc as of
+ * Stage 5e — see that file and carklight.h's "Stage 5e" block
+ * comment.
  */
 
 #include "carklight.h"
 #include "internal.h"
 
-#include <stdlib.h>
 #include <string.h>
 
-/* Copies src into a freshly malloc'd buffer; NULL in, NULL out — same
- * convention as node.c's own dup_or_null (kept as a separate static
- * copy here rather than shared across translation units, matching
- * the rest of core/'s per-file self-containment). */
+/* Copies src into a freshly ark_alloc'd buffer; NULL in, NULL out —
+ * same convention as node.c's own dup_or_null (kept as a separate
+ * static copy here rather than shared across translation units,
+ * matching the rest of core/'s per-file self-containment). */
 static char* dup_or_null(const char* src) {
     if (src == NULL) {
         return NULL;
     }
     size_t len = strlen(src) + 1;
-    char* copy = malloc(len);
+    char* copy = ark_alloc(len);
     if (copy == NULL) {
         return NULL;
     }
@@ -70,7 +73,7 @@ ArkIRNode* ark_ir_build(const ArkNode* node) {
         return NULL;
     }
 
-    ArkIRNode* ir = calloc(1, sizeof(ArkIRNode));
+    ArkIRNode* ir = ark_calloc(1, sizeof(ArkIRNode));
     if (ir == NULL) {
         return NULL;
     }
@@ -98,7 +101,7 @@ ArkIRNode* ark_ir_build(const ArkNode* node) {
     }
 
     if (node->child_count > 0) {
-        ir->children = malloc(node->child_count * sizeof(ArkIRNode*));
+        ir->children = ark_alloc(node->child_count * sizeof(ArkIRNode*));
         if (ir->children != NULL) {
             for (size_t i = 0; i < node->child_count; i++) {
                 ir->children[i] = ark_ir_build(node->children[i]);
@@ -117,12 +120,12 @@ void ark_ir_free(ArkIRNode* node) {
     for (size_t i = 0; i < node->child_count; i++) {
         ark_ir_free(node->children[i]);
     }
-    free(node->children);
-    free(node->text);
-    free(node->prop_title);
-    free(node->prop_on_click);
-    free(node->type);
-    free(node);
+    ark_dealloc(node->children);
+    ark_dealloc(node->text);
+    ark_dealloc(node->prop_title);
+    ark_dealloc(node->prop_on_click);
+    ark_dealloc(node->type);
+    ark_dealloc(node);
 }
 
 const char* ark_ir_type(const ArkIRNode* node) {

@@ -1,18 +1,19 @@
 #include "carklight.h"
 #include "internal.h"
 
-#include <stdlib.h>
 #include <string.h>
 
-/* Copies src into a freshly malloc'd buffer; returns NULL if src is
- * NULL, so optional fields (on_click, title) round-trip NULL cleanly
- * instead of turning into an empty string. */
+/* Copies src into a freshly ark_alloc'd buffer; returns NULL if src
+ * is NULL, so optional fields (on_click, title) round-trip NULL
+ * cleanly instead of turning into an empty string. Allocation goes
+ * through core/alloc.c as of Stage 5e — see carklight.h's "Stage 5e"
+ * block comment. */
 static char* dup_or_null(const char* src) {
     if (src == NULL) {
         return NULL;
     }
     size_t len = strlen(src) + 1;
-    char* copy = malloc(len);
+    char* copy = ark_alloc(len);
     if (copy == NULL) {
         return NULL; /* caller-visible as "text field ended up NULL" */
     }
@@ -24,7 +25,7 @@ static char* dup_or_null(const char* src) {
  * every field not explicitly set by the caller is a well-defined
  * NULL/0, then fill in `type`. */
 static ArkNode* node_alloc(component_type_t type) {
-    ArkNode* node = calloc(1, sizeof(ArkNode));
+    ArkNode* node = ark_calloc(1, sizeof(ArkNode));
     if (node == NULL) {
         return NULL;
     }
@@ -39,7 +40,7 @@ static ArkNode** dup_children(ArkNode** children, size_t n) {
     if (n == 0) {
         return NULL;
     }
-    ArkNode** copy = malloc(n * sizeof(ArkNode*));
+    ArkNode** copy = ark_alloc(n * sizeof(ArkNode*));
     if (copy == NULL) {
         return NULL;
     }
@@ -104,9 +105,9 @@ void ark_free_node(ArkNode* node) {
     for (size_t i = 0; i < node->child_count; i++) {
         ark_free_node(node->children[i]);
     }
-    free(node->children);
-    free(node->text);
-    free(node->on_click);
-    free(node->title);
-    free(node);
+    ark_dealloc(node->children);
+    ark_dealloc(node->text);
+    ark_dealloc(node->on_click);
+    ark_dealloc(node->title);
+    ark_dealloc(node);
 }

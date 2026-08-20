@@ -1,4 +1,5 @@
 add_library(carklight_core STATIC
+    alloc.c
     node.c
     site.c
     build_result.c

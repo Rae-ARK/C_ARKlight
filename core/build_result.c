@@ -5,24 +5,27 @@
  * ark_result_file_count/ark_result_file_path/ark_result_file_data
  * (docs/carklight.h's Stage 4 block comment; names match
  * PROPOSAL.md §3.4's public surface).
+ *
+ * Allocation goes through core/alloc.c's ark_alloc/ark_calloc/
+ * ark_realloc/ark_dealloc as of Stage 5e — see that file and
+ * carklight.h's "Stage 5e" block comment.
  */
 
 #include "carklight.h"
 #include "internal.h"
 
-#include <stdlib.h>
 #include <string.h>
 
-/* Copies src into a freshly malloc'd, NUL-terminated buffer; NULL in,
- * NULL out — same convention as node.c/ir_build.c's own dup_or_null,
- * kept as a separate static copy here per core/'s per-file
- * self-containment convention. */
+/* Copies src into a freshly ark_alloc'd, NUL-terminated buffer; NULL
+ * in, NULL out — same convention as node.c/ir_build.c's own
+ * dup_or_null, kept as a separate static copy here per core/'s
+ * per-file self-containment convention. */
 static char* dup_or_null(const char* src) {
     if (src == NULL) {
         return NULL;
     }
     size_t len = strlen(src) + 1;
-    char* copy = malloc(len);
+    char* copy = ark_alloc(len);
     if (copy == NULL) {
         return NULL;
     }
@@ -31,7 +34,7 @@ static char* dup_or_null(const char* src) {
 }
 
 ArkBuildResult* ark_build_result_new_empty(void) {
-    ArkBuildResult* result = calloc(1, sizeof(ArkBuildResult));
+    ArkBuildResult* result = ark_calloc(1, sizeof(ArkBuildResult));
     return result; /* files NULL, file_count 0 via calloc */
 }
 
@@ -41,7 +44,7 @@ int ark_build_result_add_file(ArkBuildResult* result, const char* path,
         return 1;
     }
 
-    ArkResultFile* grown = realloc(result->files,
+    ArkResultFile* grown = ark_realloc(result->files,
         (result->file_count + 1) * sizeof(ArkResultFile));
     if (grown == NULL) {
         return 1; /* original result->files/file_count left untouched */
@@ -59,9 +62,9 @@ int ark_build_result_add_file(ArkBuildResult* result, const char* path,
      * text-producing backend's (Stage 4's HTML, today) output can
      * also be handed straight to a C-string function without a
      * caller-side copy. */
-    uint8_t* data_copy = malloc(len + 1);
+    uint8_t* data_copy = ark_alloc(len + 1);
     if (data_copy == NULL) {
-        free(path_copy);
+        ark_dealloc(path_copy);
         return 1;
     }
     if (len > 0) {
@@ -103,9 +106,9 @@ void ark_free_result(ArkBuildResult* result) {
         return;
     }
     for (size_t i = 0; i < result->file_count; i++) {
-        free(result->files[i].path);
-        free(result->files[i].data);
+        ark_dealloc(result->files[i].path);
+        ark_dealloc(result->files[i].data);
     }
-    free(result->files);
-    free(result);
+    ark_dealloc(result->files);
+    ark_dealloc(result);
 }

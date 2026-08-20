@@ -32,10 +32,13 @@
  * Error convention: matches the `char** err_out` shape
  * docs/ADDENDUM.md §4.1 already establishes for `ArkBackend`
  * callbacks. 0 = valid. Non-zero = invalid, and *err_out (if non-NULL)
- * is set to a malloc'd, caller-owned message describing the first
+ * is set to an ark_alloc'd, caller-owned message describing the first
  * failure found (depth-first, first child first) — validation stops
  * at the first failure rather than collecting every error in the
  * tree.
+ *
+ * Allocation goes through core/alloc.c as of Stage 5e — see
+ * carklight.h's "Stage 5e" block comment.
  */
 
 #include "carklight.h"
@@ -43,7 +46,6 @@
 
 #include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 typedef struct {
     component_type_t type;
@@ -76,7 +78,7 @@ static const ark_schema_entry_t* schema_lookup(component_type_t type) {
     return NULL;
 }
 
-/* Formats a malloc'd error message into *err_out (if err_out is
+/* Formats an ark_alloc'd error message into *err_out (if err_out is
  * non-NULL) and returns 1, so every call site can just `return
  * fail(...)`. If err_out is NULL the caller only wanted the pass/fail
  * signal, so the message is never built. */
@@ -95,7 +97,7 @@ static int fail(char** err_out, const char* fmt, ...) {
         return 1; /* formatting itself failed; leave *err_out NULL */
     }
 
-    char* msg = malloc((size_t)needed + 1);
+    char* msg = ark_alloc((size_t)needed + 1);
     if (msg == NULL) {
         return 1; /* OOM building the message; leave *err_out NULL */
     }

@@ -1,10 +1,11 @@
 #include "carklight.h"
 #include "internal.h"
 
-#include <stdlib.h>
+/* Allocation goes through core/alloc.c as of Stage 5e — see
+ * carklight.h's "Stage 5e" block comment. */
 
 ArkSite* ark_site_new_from_root(ArkNode* root) {
-    ArkSite* site = malloc(sizeof(ArkSite));
+    ArkSite* site = ark_alloc(sizeof(ArkSite));
     if (site == NULL) {
         return NULL;
     }
@@ -17,7 +18,7 @@ void ark_free_site(ArkSite* site) {
         return;
     }
     ark_free_node(site->root);
-    free(site);
+    ark_dealloc(site);
 }
 
 const ArkNode* ark_site_root(const ArkSite* site) {

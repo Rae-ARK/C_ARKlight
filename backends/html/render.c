@@ -9,85 +9,46 @@
  * Per ADDENDUM.md §4.1, this file only ever reaches ArkSite/
  * ArkBuildResult through carklight.h — never core/internal.h, which
  * stays private to core/ (see that file's own header comment). Every
- * string is built through the small growable buffer below rather
- * than repeated realloc-by-hand at each call site: buffer growth and
- * escaping correctness are the actual risk in this stage
- * (IMPLEMENTATION.md's own "why here" note for Stage 4), so both live
- * in one place instead of being re-derived per tag.
+ * string is built through ArkBuf (core/alloc.c, exposed publicly via
+ * carklight.h's "Stage 5e" block comment) rather than repeated
+ * realloc-by-hand at each call site: buffer growth and escaping
+ * correctness are the actual risk in this stage (IMPLEMENTATION.md's
+ * own "why here" note for Stage 4), so both live in one place instead
+ * of being re-derived per tag. This backend previously rolled its own
+ * private `strbuf_t` for this; Stage 5e replaced it with the shared
+ * ArkBuf both this file and backends/js/render.c now use, per
+ * CORE_HANDLER.md §1's "duplicated per backend instead of shared"
+ * observation. sb_* names below are kept as thin local aliases so the
+ * rendering logic itself (render_node/render_document/...) didn't
+ * need touching.
  */
 
 #include "carklight.h"
 
-#include <stdlib.h>
 #include <string.h>
 
-/* --- Growable byte buffer -------------------------------------------- */
+/* --- Growable byte buffer: thin aliases over the shared ArkBuf ------- */
 
-typedef struct {
-    char*  data;
-    size_t len;
-    size_t cap;
-} strbuf_t;
+typedef ArkBuf strbuf_t;
 
 static int sb_init(strbuf_t* sb) {
-    sb->cap = 256;
-    sb->len = 0;
-    sb->data = malloc(sb->cap);
-    if (sb->data == NULL) {
-        sb->cap = 0;
-        return 1;
-    }
-    sb->data[0] = '\0';
-    return 0;
+    return ark_buf_init(sb);
 }
 
 static void sb_free(strbuf_t* sb) {
-    free(sb->data);
-    sb->data = NULL;
-    sb->len = 0;
-    sb->cap = 0;
-}
-
-/* Ensures room for `extra` more bytes plus the trailing NUL. Returns
- * 0 on success; leaves `sb` unchanged (still valid, still freeable)
- * on allocation failure. */
-static int sb_reserve(strbuf_t* sb, size_t extra) {
-    size_t needed = sb->len + extra + 1;
-    if (needed <= sb->cap) {
-        return 0;
-    }
-    size_t new_cap = sb->cap == 0 ? 256 : sb->cap;
-    while (new_cap < needed) {
-        new_cap *= 2;
-    }
-    char* grown = realloc(sb->data, new_cap);
-    if (grown == NULL) {
-        return 1;
-    }
-    sb->data = grown;
-    sb->cap = new_cap;
-    return 0;
+    ark_buf_free(sb);
 }
 
 static int sb_append_n(strbuf_t* sb, const char* s, size_t n) {
-    if (n == 0) {
-        return 0;
-    }
-    if (sb_reserve(sb, n) != 0) {
-        return 1;
-    }
-    memcpy(sb->data + sb->len, s, n);
-    sb->len += n;
-    sb->data[sb->len] = '\0';
-    return 0;
+    return ark_buf_append_n(sb, s, n);
 }
 
 static int sb_append(strbuf_t* sb, const char* s) {
-    return sb_append_n(sb, s, strlen(s));
+    return ark_buf_append(sb, s);
 }
 
 static int sb_append_char(strbuf_t* sb, char c) {
-    return sb_append_n(sb, &c, 1);
+    return ark_buf_append_char(sb, c);
 }
 
 /* HTML-escapes `s` into `sb`, matching Python's `html.escape(s,
@@ -241,9 +202,11 @@ static int render_document(strbuf_t* sb, const ArkIRNode* page_ir) {
 
 /* --- Public entry points ------------------------------------------------ */
 
+/* Allocation goes through core/alloc.c's public ark_alloc as of
+ * Stage 5e — see carklight.h's "Stage 5e" block comment. */
 static char* err_dup(const char* msg) {
     size_t len = strlen(msg) + 1;
-    char* copy = malloc(len);
+    char* copy = ark_alloc(len);
     if (copy != NULL) {
         memcpy(copy, msg, len);
     }

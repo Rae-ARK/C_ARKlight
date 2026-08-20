@@ -33,16 +33,20 @@
  *
  * Per ADDENDUM.md §4.1, this file only ever reaches ArkSite/
  * ArkBuildResult/ArkIRNode through carklight.h — never core/
- * internal.h. Uses the same growable strbuf pattern backends/html/
- * render.c established, duplicated here rather than shared: each
- * backend directory is self-contained per ADDENDUM.md §4 ("touching
- * the HTML backend means touching one directory... it doesn't ripple
- * into CSS/JS/core").
+ * internal.h. Previously used a private growable strbuf duplicated
+ * from backends/html/render.c's own copy; Stage 5e (undocumented —
+ * see docs/Think different, life easy/CORE_HANDLER.md) replaced both
+ * private copies with the one shared ArkBuf type carklight.h now
+ * exposes, since "duplicated per backend instead of shared" was
+ * exactly the growable-buffer problem that doc's §1 called out. This
+ * doesn't reintroduce cross-backend coupling — ArkBuf is a
+ * general-purpose core/ utility exposed through the same public
+ * header this file already only ever includes, not a dependency on
+ * another backend.
  */
 
 #include "carklight.h"
 
-#include <stdlib.h>
 #include <string.h>
 
 /* Where the HTML backend expects to find the generated runtime,
@@ -54,64 +58,22 @@
  * see that file for the rationale — duplicated per-backend rather
  * than shared, per this file's header comment). --------------------- */
 
-typedef struct {
-    char*  data;
-    size_t len;
-    size_t cap;
-} strbuf_t;
+typedef ArkBuf strbuf_t;
 
 static int sb_init(strbuf_t* sb) {
-    sb->cap = 256;
-    sb->len = 0;
-    sb->data = malloc(sb->cap);
-    if (sb->data == NULL) {
-        sb->cap = 0;
-        return 1;
-    }
-    sb->data[0] = '\0';
-    return 0;
+    return ark_buf_init(sb);
 }
 
 static void sb_free(strbuf_t* sb) {
-    free(sb->data);
-    sb->data = NULL;
-    sb->len = 0;
-    sb->cap = 0;
-}
-
-static int sb_reserve(strbuf_t* sb, size_t extra) {
-    size_t needed = sb->len + extra + 1;
-    if (needed <= sb->cap) {
-        return 0;
-    }
-    size_t new_cap = sb->cap == 0 ? 256 : sb->cap;
-    while (new_cap < needed) {
-        new_cap *= 2;
-    }
-    char* grown = realloc(sb->data, new_cap);
-    if (grown == NULL) {
-        return 1;
-    }
-    sb->data = grown;
-    sb->cap = new_cap;
-    return 0;
+    ark_buf_free(sb);
 }
 
 static int sb_append_n(strbuf_t* sb, const char* s, size_t n) {
-    if (n == 0) {
-        return 0;
-    }
-    if (sb_reserve(sb, n) != 0) {
-        return 1;
-    }
-    memcpy(sb->data + sb->len, s, n);
-    sb->len += n;
-    sb->data[sb->len] = '\0';
-    return 0;
+    return ark_buf_append_n(sb, s, n);
 }
 
 static int sb_append(strbuf_t* sb, const char* s) {
-    return sb_append_n(sb, s, strlen(s));
+    return ark_buf_append(sb, s);
 }
 
 /* --- Fixed runtime fragments -------------------------------------------
@@ -384,9 +346,11 @@ static int build_runtime_js(strbuf_t* sb, const ark_behavior_usage_t* usage) {
 
 /* --- Public entry points ------------------------------------------------ */
 
+/* Allocation goes through core/alloc.c's public ark_alloc as of
+ * Stage 5e — see carklight.h's "Stage 5e" block comment. */
 static char* err_dup(const char* msg) {
     size_t len = strlen(msg) + 1;
-    char* copy = malloc(len);
+    char* copy = ark_alloc(len);
     if (copy != NULL) {
         memcpy(copy, msg, len);
     }

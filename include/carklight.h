@@ -426,6 +426,79 @@ int ark_js_render(ArkBackend* self, const ArkSite* site,
  * call; never NULL. */
 const ArkBackend* ark_js_backend(void);
 
+/* --- Stage 5e (undocumented): core_handler — centralized allocation
+ * layer ------------------------------------------------------------
+ *
+ * Not a roadmap stage in docs/IMPLEMENTATION.md — an "extra" landed
+ * after Stage 5b per the proposal in
+ * `docs/Think different, life easy/CORE_HANDLER.md`. That doc's own
+ * §1 counted 46 raw malloc/realloc/calloc/free call sites across 9
+ * files (all six core/*.c files plus all three backends/*/render.c
+ * files); every one of them now goes through the functions below
+ * instead, mechanically — no allocation *strategy* change, just one
+ * choke point.
+ *
+ * `ark_alloc`/`ark_calloc`/`ark_realloc`/`ark_dealloc` are thin,
+ * direct wrappers (malloc/calloc/realloc/free respectively) so a
+ * later move to a pooled/arena allocator, or allocation-failure
+ * injection for testing, is a one-file change (core/alloc.c) instead
+ * of a 9-file one. `ark_calloc` isn't in the proposal doc's
+ * illustrative signature list but is added here because three real
+ * call sites (ArkBuildResult/ArkNode/ArkIRNode's zero-initializing
+ * constructors) need it.
+ *
+ * ArkBuf is the shared growable-buffer type the proposal's §1 flags
+ * as duplicated per-backend (`strbuf_t` in backends/html/render.c and
+ * backends/js/render.c, independently reimplementing the same
+ * reserve/grow/append logic). Both backends now share this one
+ * instead. Unlike ArkNode/ArkSite/ArkBuildResult/ArkIRNode, ArkBuf is
+ * deliberately *not* opaque: those types hide fields to protect an
+ * ownership/tree invariant; ArkBuf has no such invariant to protect,
+ * it's a plain byte-buffer utility, and per docs/ADDENDUM.md §4.1
+ * every backend only ever sees carklight's world through this one
+ * public header — a stack-declared `ArkBuf buf;` (matching how each
+ * backend already stack-declared its own strbuf_t) is only possible
+ * if the struct is fully defined here, not forward-declared. */
+
+typedef struct {
+    char*  data;
+    size_t len;
+    size_t cap;
+} ArkBuf;
+
+/* Direct malloc/calloc/realloc/free wrappers — the single choke point
+ * every allocation in core/ and backends/ now goes through. Same
+ * failure convention as the functions they replace: NULL/non-zero on
+ * OOM, propagated by the caller exactly as a raw malloc failure would
+ * have been. */
+void* ark_alloc(size_t size);
+void* ark_calloc(size_t nmemb, size_t size);
+void* ark_realloc(void* ptr, size_t size);
+void  ark_dealloc(void* ptr);
+
+/* Initializes `buf` with a small starting capacity. Returns 0 on
+ * success; on failure `buf->data` is NULL and `buf->cap` is 0 (still
+ * safe to pass to ark_buf_free). */
+int ark_buf_init(ArkBuf* buf);
+
+/* Ensures room for `extra` more bytes plus the trailing NUL, growing
+ * geometrically. Returns 0 on success; leaves `buf` unchanged (still
+ * valid, still freeable) on allocation failure. */
+int ark_buf_reserve(ArkBuf* buf, size_t extra);
+
+/* Appends the first `n` bytes of `s`. Returns 0 on success. */
+int ark_buf_append_n(ArkBuf* buf, const char* s, size_t n);
+
+/* Appends the NUL-terminated string `s`. Returns 0 on success. */
+int ark_buf_append(ArkBuf* buf, const char* s);
+
+/* Appends a single byte. Returns 0 on success. */
+int ark_buf_append_char(ArkBuf* buf, char c);
+
+/* Frees `buf->data` and resets `buf` to an empty, reusable state.
+ * Safe to call on an already-freed or zero-initialized ArkBuf. */
+void ark_buf_free(ArkBuf* buf);
+
 #ifdef __cplusplus
 }
 #endif
