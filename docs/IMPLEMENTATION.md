@@ -127,6 +127,9 @@ yet) that keeps the scope genuinely small.
 
 ## Stage 2 — Validate
 
+**Status: implemented.** `ark_validate` in `carklight.h`,
+`core/validate.c`, and `tests/test_validate.c`.
+
 **Scope:** mirrors `arklight.ir.validate` — schema membership check
 (is this a known `component_type_t`?), required-prop presence, the
 text-only-children rule. Introduces the schema table (hand-written,
@@ -134,10 +137,27 @@ mirroring `SCHEMA`'s shape) and the `char** err_out` error-propagation
 convention for the first time, since this is the first stage that can
 meaningfully fail on bad input rather than just transform it.
 
-**Test fixtures:** `tests/test_validate.py` — both the passing cases
-and, importantly, the *rejection* cases (missing required prop, wrong
-child type in a text-only component), since a validator that only
-tests the happy path isn't tested.
+Of those three, two have a reachable rejection case through the five
+hand-written Stage 0 constructors: required-prop presence (Heading/
+Text/Button all need non-empty `text`; Heading's `level` — explicitly
+called out in carklight.h as "not validated at this stage (Stage 2's
+job)" — must be 1-6) and schema membership, checked recursively over
+every node in the tree. The text-only-children rule has no
+instantiable case yet: Heading/Text/Button don't accept `ArkNode`
+children at all (their payload is `text` directly), and Page/
+Container accept arbitrary component children by design — the same
+kind of structurally-unreachable gap Stage 1 documented for its own
+deferred transforms, not a skipped check. `ark_validate` is read-only
+(never mutates `node`) and stops at the first failure found
+(depth-first) rather than collecting every error in the tree.
+
+**Test fixtures:** ARKlight-py's `tests/test_validate.py` lives in a
+separate repository and isn't checked into C_ARKlight, so
+`tests/test_validate.c` is a hand-written equivalent — both the
+passing cases and the *rejection* cases (NULL text, empty-string text,
+out-of-range Heading level, an invalid node nested deep inside an
+otherwise-valid tree), since a validator that only tests the happy
+path isn't tested.
 
 **Explicitly deferred:** IR construction; anything backend-specific.
 

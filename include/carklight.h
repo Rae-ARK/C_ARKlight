@@ -96,6 +96,24 @@ void ark_free_node(ArkNode* node);
  * one thing this pass actually prunes. Idempotent; NULL in, NULL out. */
 ArkNode* ark_normalize(ArkNode* node);
 
+/* --- Stage 2: validate --------------------------------------------------
+ * Mirrors `arklight.ir.validate`. Recursive, read-only (never mutates
+ * `node`). Checks, in order, the first time any of them fails: schema
+ * membership (is node->type a known component_type_t?), required-prop
+ * presence (Heading/Text/Button all need non-empty text; Heading's
+ * level must be 1-6), then recurses into children — so schema
+ * membership is effectively checked for the whole tree, not just the
+ * root. See core/validate.c for why the text-only-children rule has
+ * no reachable case among the five hand-written Stage 0 component
+ * types.
+ *
+ * Returns 0 if valid. Returns non-zero if invalid, and — if err_out is
+ * non-NULL — sets *err_out to a malloc'd, caller-owned message
+ * describing the first failure found; caller must free() it. Passing
+ * err_out as NULL is fine when only the pass/fail result matters.
+ * NULL node is valid (returns 0, *err_out untouched/NULL). */
+int ark_validate(const ArkNode* node, char** err_out);
+
 /* --- Site & build result: alloc/free scaffolding only for now --------
  * Real construction (ark_load_arklight, ark_build) is not part of
  * Stage 0 — see the file header above.

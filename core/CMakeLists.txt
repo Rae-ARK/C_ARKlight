@@ -3,6 +3,7 @@ add_library(carklight_core STATIC
     site.c
     build_result.c
     normalize.c
+    validate.c
 )
 
 target_include_directories(carklight_core
