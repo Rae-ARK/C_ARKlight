@@ -28,6 +28,14 @@ set_target_properties(carklight_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(CARKLIGHT_BACKEND_LIBS "")
 
+# Stage 4 (docs/IMPLEMENTATION.md): first backend directory to land.
+# Each backend below adds itself to CARKLIGHT_BACKEND_LIBS and to the
+# PIC property list the same way — core/'s own add_subdirectory above
+# never changes to accommodate a new one.
+add_subdirectory(backends/html)
+set_target_properties(carklight_backend_html PROPERTIES POSITION_INDEPENDENT_CODE ON)
+list(APPEND CARKLIGHT_BACKEND_LIBS carklight_backend_html)
+
 add_library(carklight SHARED lib_glue.c)
 target_link_libraries(carklight PRIVATE carklight_core ${CARKLIGHT_BACKEND_LIBS})
 target_include_directories(carklight PUBLIC ${CMAKE_SOURCE_DIR}/include)

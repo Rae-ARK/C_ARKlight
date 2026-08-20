@@ -17,3 +17,8 @@ add_executable(test_ir_build test_ir_build.c)
 target_link_libraries(test_ir_build PRIVATE carklight_core)
 
 add_test(NAME stage3_ir_build COMMAND test_ir_build)
+
+add_executable(test_html_backend test_html_backend.c)
+target_link_libraries(test_html_backend PRIVATE carklight_backend_html carklight_core)
+
+add_test(NAME stage4_html_backend COMMAND test_html_backend)

@@ -61,12 +61,26 @@ struct ArkIRNode {
     size_t      child_count;
 };
 
+/*
+ * One output file, as added by ark_build_result_add_file (Stage 4).
+ * Both `path` and `data` are owned copies — the caller's originals
+ * (a backend's local render buffer, typically) are never aliased or
+ * retained past that call.
+ */
+typedef struct {
+    char*    path;
+    uint8_t* data;
+    size_t   len;
+} ArkResultFile;
+
 struct ArkBuildResult {
-    /* Empty in Stage 0 — no backend populates this yet (Stage 4/5).
-     * Field(s) reserved so ark_free_result has real (if trivial) work
-     * to do, and so this struct's shape doesn't have to change shape
-     * later just to go from "empty" to "holds files". */
-    size_t file_count;
+    /* Stage 0 shipped this struct empty (file_count only, always 0)
+     * so ark_free_result had real work to do ahead of any backend
+     * existing. Stage 4 is the first to actually populate it — same
+     * field name, now backed by a real array instead of staying 0
+     * forever. */
+    ArkResultFile* files;
+    size_t         file_count;
 };
 
 #endif /* CARKLIGHT_CORE_INTERNAL_H */

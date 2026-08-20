@@ -201,12 +201,138 @@ ArkSite* ark_site_new_from_root(ArkNode* root);
 
 void ark_free_site(ArkSite* site);
 
+/* Read-only access to the root a site was built from. Added in Stage
+ * 4 so a backend (which only ever sees ArkSite through this header,
+ * never core/internal.h — see docs/ADDENDUM.md §4.1) has a way to
+ * reach the tree it's asked to render. NULL for a NULL site. */
+const ArkNode* ark_site_root(const ArkSite* site);
+
 /* Test/internal scaffold: an empty, immediately freeable build
  * result, exercising the same alloc/free discipline as the two types
  * above. Not connected to any backend yet — see Stage 4/5. */
 ArkBuildResult* ark_build_result_new_empty(void);
 
+/* Appends one output file to `result`, copying both `path` and
+ * `data` (caller retains ownership of what it passed in) — the
+ * primitive every backend's `render` uses to fill an ArkBuildResult,
+ * since ArkBuildResult stays opaque outside core/ the same as every
+ * other type here (docs/ADDENDUM.md §4.1's "backends only ever see
+ * these through carklight.h" rule applies to writing, not just
+ * reading). Returns 0 on success, non-zero on allocation failure (the
+ * file is not added). `len` is the byte length of `data`; `data`
+ * itself need not be NUL-terminated text — Stage 4's HTML output
+ * happens to be, later backends' output may not be. */
+int ark_build_result_add_file(ArkBuildResult* result, const char* path,
+                               const uint8_t* data, size_t len);
+
+/* Note: the stored copy is always allocated one byte larger than
+ * `len` and NUL-terminated, regardless of content, so a text-
+ * producing backend's output (Stage 4's HTML, today) can be handed
+ * straight to a C-string function without a caller-side copy — `len`
+ * itself still reports the exact content length either way, for a
+ * future binary-output backend that needs it. */
+
+/* Accessors mirroring PROPOSAL.md §3.4's public surface
+ * (`ark_result_file_count`/`ark_result_file_path`/
+ * `ark_result_file_data`), usable today against whatever a backend's
+ * `render` has already added via ark_build_result_add_file, ahead of
+ * `ark_build`/`ark_load_ir` themselves landing (Stage 6/7). */
+size_t ark_result_file_count(const ArkBuildResult* result);
+
+/* Path of the file at `index` (e.g. "index.html"), or NULL if index
+ * is out of range. Owned by `result`; valid until ark_free_result. */
+const char* ark_result_file_path(const ArkBuildResult* result, size_t index);
+
+/* Bytes of the file at `index`; NULL (and *len_out, if non-NULL, left
+ * untouched) if index is out of range. Owned by `result`, same
+ * lifetime rule as ark_result_file_path. len_out may be NULL if the
+ * caller doesn't need the length. */
+const uint8_t* ark_result_file_data(const ArkBuildResult* result, size_t index,
+                                     size_t* len_out);
+
 void ark_free_result(ArkBuildResult* result);
+
+/* --- Backend interface (docs/ADDENDUM.md §4.1) -------------------------
+ * The one fixed contract every backend implements — HTML today
+ * (Stage 4), CSS/JS next (Stage 5). `ark_build` (Stage 6/7) will walk
+ * a compile-time-registered array of these rather than special-casing
+ * any one backend by name; nothing about that dispatch exists yet,
+ * but the struct shape is fixed now so Stage 4 has something concrete
+ * to implement against.
+ *
+ * `init`/`postprocess`/`shutdown` are optional (NULL-able); `render`
+ * is required. A backend receives the validated `ArkSite` — not a
+ * pre-built IR tree — and is responsible for calling ark_ir_build
+ * itself (mirrors ARKlight-py's pipeline calling build_website_ir
+ * once, upstream of every backend, but carklight has nowhere to cache
+ * that shared IR tree yet without ArkSite growing a field for it, so
+ * each backend builds and frees its own for now).
+ */
+typedef struct ArkBackend {
+    const char* name;   /* "html", "css", "js", ... */
+    uint32_t    flag;   /* one of ARK_BACKEND_* below */
+    int  (*init)(struct ArkBackend* self, char** err_out);
+    int  (*render)(struct ArkBackend* self, const ArkSite* site,
+                    ArkBuildResult* out, char** err_out);
+    int  (*postprocess)(struct ArkBackend* self, ArkBuildResult* out,
+                         char** err_out);
+    void (*shutdown)(struct ArkBackend* self);
+} ArkBackend;
+
+#define ARK_BACKEND_HTML (1u << 0)
+#define ARK_BACKEND_CSS  (1u << 1)
+#define ARK_BACKEND_JS   (1u << 2)
+
+/* --- Stage 4: HTML backend ---------------------------------------------
+ * Mirrors `arklight.backend.html.render` — the first backend written
+ * against the ArkBackend interface above, and the first stage
+ * producing actual output bytes. Confined to backends/html/, and only
+ * ever reaches ArkSite/ArkBuildResult through this header, same as
+ * any other language binding would (docs/ADDENDUM.md §4.1).
+ *
+ * Scope, matched to what Stages 0-3 actually carry (five component
+ * types, no props table, no routes — see carklight.h's own Stage 0/3
+ * comments): tag mapping per component type (Page -> the document's
+ * <body>, Heading -> h1-h6 per its level prop, Text -> <p>, Button ->
+ * <button> with on_click becoming a data-ark-on-click attribute,
+ * Container -> <div>), and HTML-escaping of every text value and
+ * attribute value emitted. Every render call produces exactly one
+ * output file, "index.html" — ARKlight-py's own root-route mapping
+ * (`_output_path_for_route("/") == "index.html"`) applied to the one
+ * root ArkSite already has, since there's no route/site_name concept
+ * yet for any other route to hang off of (same gap Stage 3's doc
+ * comment calls out).
+ *
+ * Explicitly deferred, matching docs/IMPLEMENTATION.md's Stage 4
+ * scope note: the CSS/JS backends (Stage 5) — so no <link
+ * rel="stylesheet">/<script> tags yet either, since both would point
+ * at output this port doesn't produce until then. Also deferred,
+ * because nothing upstream of Stage 4 carries them yet: Link/Image
+ * (and therefore internal href/src rewriting), the generic props
+ * table (class/style/aria-prefixed/unknown-prop-as-data-attribute),
+ * and page-scoped state/Bind/Action. Each becomes eligible for this
+ * backend the same way it became eligible for Stages 0-3: only once
+ * some earlier stage's data model carries it.
+ */
+
+/* Renders `site` to HTML, appending the result to `out` via
+ * ark_build_result_add_file. Matches ArkBackend.render's signature so
+ * it can be wired in as one directly; `self` is unused today (no
+ * per-instance state) but kept for interface conformance. Assumes
+ * `site`'s root already passed ark_normalize + ark_validate, same
+ * precondition ark_ir_build itself places on its caller. A NULL site,
+ * or a site with a NULL root, is treated as "nothing to render" — 0
+ * files added, return 0 (not an error). Returns 0 on success,
+ * non-zero on failure (OOM or a failed ark_build_result_add_file),
+ * setting *err_out (if non-NULL) to a malloc'd, caller-owned message. */
+int ark_html_render(ArkBackend* self, const ArkSite* site,
+                     ArkBuildResult* out, char** err_out);
+
+/* The compile-time-registered HTML ArkBackend instance itself —
+ * {name = "html", flag = ARK_BACKEND_HTML, render = ark_html_render,
+ * everything else NULL}. Returns the same static instance every
+ * call; never NULL. */
+const ArkBackend* ark_html_backend(void);
 
 #ifdef __cplusplus
 }

@@ -208,7 +208,11 @@ string-generation-heavy stages after it.
 
 ---
 
-## Stage 4 — HTML backend
+**Status: implemented.** `ArkBackend` (the interface itself),
+`ark_html_render`/`ark_html_backend`, and the `ArkBuildResult` file
+accessors (`ark_build_result_add_file`/`ark_result_file_count`/
+`ark_result_file_path`/`ark_result_file_data`) in `carklight.h`;
+`backends/html/render.c`; `tests/test_html_backend.c`.
 
 **Scope:** mirrors `arklight.backend.html.render` — the first stage
 producing actual output bytes, and the first backend written against
@@ -217,6 +221,35 @@ the `ArkBackend` interface (`ADDENDUM.md` §4.1): its `render` fills an
 `shutdown` left `NULL` in v1. Tag mapping per component type,
 attribute escaping, internal `Link`/`Image` href/src rewriting to
 relative file paths.
+
+Scoped down to what Stages 0-3 actually carry, same shape of
+divergence Stage 3 already documented for itself: only the five
+Stage 0 component types have a tag mapping (Page's own children
+become the document `<body>`; Heading -> `h1`-`h6` off its `level`
+prop; Text -> `<p>`; Button -> `<button>`, with `on_click` becoming a
+`data-ark-on-click` attribute; Container -> `<div>`), there is no
+generic props table yet so `class`/`style`/`aria-*`/unknown-prop-as-
+`data-*` don't apply, and there is no `Link`/`Image` component yet so
+neither does internal href/src rewriting — all of that needs a props
+table and/or those component types to exist further upstream first,
+neither of which is in scope here. `ArkSite`'s single-root,
+route-less shape (Stage 3's own gap) also means every render produces
+exactly one output file, `"index.html"` — ARKlight-py's own
+`_output_path_for_route("/")` mapping applied to the one root this
+port has.
+
+`ArkBuildResult` itself needed to grow real file storage to make any
+of this observable — Stage 0 shipped it permanently empty
+(`file_count` always 0, no backend populated it yet). The accessors
+added here (`ark_build_result_add_file` for backends to write; `ark_
+result_file_count`/`ark_result_file_path`/`ark_result_file_data` for
+callers to read) match the names `PROPOSAL.md` §3.4 already fixed for
+this surface, so nothing here needs renaming once `ark_build`/`ark_
+load_ir` (Stage 6/7) land and start calling the same accessors.
+`ArkSite` also needed one new read accessor, `ark_site_root`, so a
+backend — which only ever sees `ArkSite` through this header, never
+`core/internal.h` (`ADDENDUM.md` §4.1) — has a way to reach the tree
+it's asked to render.
 
 Any later revision to ARKlight-py's HTML backend — a refactor of
 `arklight.backend.html.render` itself, or an htmx-based rewrite of the
@@ -228,15 +261,35 @@ lands here as a new implementation of the same `render` entry against
 the same interface, confined to `backends/html/` and never touching
 `backends/css/`, `backends/js/`, or `core/`.
 
-**Test fixtures:** `tests/test_html_backend.py` — deliberately the
-largest fixture file in the existing suite, which makes this stage the
-most immediately checkable: build a tree, render it, `diff` the output
+**Test fixtures:** `tests/test_html_backend.py` (Rae-ARK/ARKlight,
+cloned separately as reference) — deliberately the largest fixture
+file in the existing suite, which makes this stage the most
+immediately checkable: build a tree, render it, `diff` the output
 string against what ARKlight-py produced for the identical input.
+Hand-ported to `tests/test_html_backend.c` case by case, restricted to
+the subset reachable through Stage 0's five component types: basic
+page shape (doctype/title/heading/paragraph), the `level` prop
+controlling the heading tag, HTML-escaping of text content, `Button`
+rendering, `on_click` as a `data-ark-*` attribute, plus one
+Container-nesting case and one absent-title case with no Python-side
+equivalent (see the scope note above for why). Every other case in
+the Python file — `Link`/`Image`, routes/relative paths, the
+stylesheet/script tags, `class_name`/`style`/`aria-*`, semantic
+layout/forms/tables/media tags, behavior props beyond `on_click` — has
+no port here, for the same "hasn't reached this port's data model
+yet" reason in each case.
 
-**Explicitly deferred:** CSS/JS backends (Stage 5); this stage only
-needs to satisfy the "byte-for-byte where the backend guarantees
-deterministic serialization" bar from the proposal's parity-testing
-section (§3.3) for HTML text specifically.
+**Explicitly deferred:** CSS/JS backends (Stage 5) and everything that
+depends on them (the stylesheet `<link>`/`<script>` tags Stage 5's
+output would be pointed at); this stage only needs to satisfy the
+"byte-for-byte where the backend guarantees deterministic
+serialization" bar from the proposal's parity-testing section (§3.3)
+for HTML text specifically, and only for the component surface
+Stages 0-3 actually carry today — the rest of ARKlight-py's HTML
+backend (Link/Image + route rewriting, the generic props table,
+state/Bind/Action) becomes in-scope for this backend only once some
+earlier stage's data model grows to carry it, the same ordering
+Stage 3 already established for its own IR shape.
 
 **Why here, and why alone rather than bundled with CSS/JS:** string-
 building discipline (buffer growth, escaping correctness, no

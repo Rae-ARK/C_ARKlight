@@ -19,3 +19,7 @@ void ark_free_site(ArkSite* site) {
     ark_free_node(site->root);
     free(site);
 }
+
+const ArkNode* ark_site_root(const ArkSite* site) {
+    return site != NULL ? site->root : NULL;
+}
