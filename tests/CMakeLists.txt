@@ -27,3 +27,8 @@ add_executable(test_css_backend test_css_backend.c)
 target_link_libraries(test_css_backend PRIVATE carklight_backend_css carklight_core)
 
 add_test(NAME stage5a_css_backend COMMAND test_css_backend)
+
+add_executable(test_js_backend test_js_backend.c)
+target_link_libraries(test_js_backend PRIVATE carklight_backend_js carklight_core)
+
+add_test(NAME stage5b_js_backend COMMAND test_js_backend)

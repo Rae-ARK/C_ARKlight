@@ -43,6 +43,12 @@ add_subdirectory(backends/css)
 set_target_properties(carklight_backend_css PROPERTIES POSITION_INDEPENDENT_CODE ON)
 list(APPEND CARKLIGHT_BACKEND_LIBS carklight_backend_css)
 
+# Stage 5b (docs/IMPLEMENTATION.md): JS backend. Same wiring pattern
+# again — core/ and the html/css backends are untouched.
+add_subdirectory(backends/js)
+set_target_properties(carklight_backend_js PROPERTIES POSITION_INDEPENDENT_CODE ON)
+list(APPEND CARKLIGHT_BACKEND_LIBS carklight_backend_js)
+
 add_library(carklight SHARED lib_glue.c)
 target_link_libraries(carklight PRIVATE carklight_core ${CARKLIGHT_BACKEND_LIBS})
 target_include_directories(carklight PUBLIC ${CMAKE_SOURCE_DIR}/include)

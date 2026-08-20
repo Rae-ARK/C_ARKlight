@@ -372,6 +372,60 @@ int ark_css_render(ArkBackend* self, const ArkSite* site,
  * call; never NULL. */
 const ArkBackend* ark_css_backend(void);
 
+/* --- Stage 5b: JS backend -----------------------------------------------
+ * Mirrors `arklight.backend.js.render` — the small, fixed
+ * named-behavior runtime (`toggle`/`scroll-to`/`copy`/`dismiss`) plus
+ * the unconditional nav-link highlighter. Confined to backends/js/,
+ * same interface Stage 4/5a established.
+ *
+ * Scope: ARKlight-py's JS backend actually ships two closed
+ * vocabularies — named behaviors (keyed off a plain-string
+ * `on_click`) and a reactive-state runtime (`State`/`Bind`/
+ * `Action.*`, keyed off an `ActionRef` on `on_click` instead). Only
+ * the first has anywhere to attach in this port: ArkIRNode's
+ * `on_click` (ark_ir_prop_on_click) is always a plain string or NULL,
+ * with no ActionRef equivalent, and ArkSite carries no page-level
+ * state concept yet. So this backend ships the four behavior
+ * fragments — only the ones a given site's IR actually references,
+ * same "don't ship what's unused" discipline upstream applies — and
+ * the nav highlighter, unconditionally. No `_STATE_CORE_JS`, no
+ * `ACTION_FRAGMENTS`, no `data-ark-state`: that half of upstream's
+ * runtime becomes eligible the same way every other deferred surface
+ * in this port has (some earlier stage's data model growing a
+ * State/Bind/Action shape first).
+ *
+ * Also still absent (Stage 0's own gap, not new to this stage):
+ * `ark_button` has no `behavior_target`/`toggle_class` params, so the
+ * HTML backend never emits the `data-ark-target`/
+ * `data-ark-toggle-class` attributes the shipped behavior fragments
+ * read at runtime. The fragment text still ships whenever its
+ * behavior name is referenced — ARKlight-py doesn't gate fragment
+ * inclusion on attribute-renderability either — so a future
+ * `ark_button` growing those params only changes Stage 4, not this
+ * file.
+ *
+ * Every fragment shipped here is a small, statically-readable JS
+ * function — no `eval`, no `new Function`, nothing executed from a
+ * string, same guarantee upstream's own header comment calls out.
+ */
+
+/* Renders the named-behavior runtime to "arklight.js", appending it
+ * to `out` via ark_build_result_add_file. Matches ArkBackend.render's
+ * signature; `self` is unused (no per-instance state). A NULL site,
+ * or a site with a NULL root, is "nothing to render" — 0 files added,
+ * return 0 (not an error), same convention as ark_html_render. Returns
+ * 0 on success, non-zero on failure (NULL out, OOM, or a failed
+ * ark_build_result_add_file), setting *err_out (if non-NULL) to a
+ * malloc'd, caller-owned message. */
+int ark_js_render(ArkBackend* self, const ArkSite* site,
+                   ArkBuildResult* out, char** err_out);
+
+/* The compile-time-registered JS ArkBackend instance itself —
+ * {name = "js", flag = ARK_BACKEND_JS, render = ark_js_render,
+ * everything else NULL}. Returns the same static instance every
+ * call; never NULL. */
+const ArkBackend* ark_js_backend(void);
+
 #ifdef __cplusplus
 }
 #endif
