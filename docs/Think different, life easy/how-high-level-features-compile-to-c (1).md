@@ -1419,7 +1419,152 @@ applied to next.
 
 ---
 
-## 9. Net takeaway
+## 9. Memory-safety failure modes: what every C_ARKlight-emitted `.c` file must avoid
+
+Every mechanism in §§1-8 — vtables, closures, tagged unions, arenas,
+refcounting — is bookkeeping a high-level language's compiler or runtime
+does *for* you. The flip side, and the reason this document can't stop at
+"here's how the feature lowers": once `C_ARKlight` is the thing emitting
+raw C on someone else's behalf, it inherits every classic C memory bug as
+a **codegen correctness obligation**, not just a hand-written-code risk.
+A human forgetting a bounds check is a bug in one file; a codegen
+template with the same gap is a bug replicated into every fragment it
+ever emits. The five failure modes below are the canonical set — worth
+being concrete about each, because "be careful with memory" is not
+actionable and "never emit an unchecked `strcpy`" is.
+
+### 9.1 Missing bounds checks → buffer overflow
+
+```c
+char buf[512];
+memcpy(buf, user_data, user_data_len);   /* no check that user_data_len <= 512 */
+```
+
+C arrays don't carry their own length at runtime and indexing past the
+end is not a checked operation — it's **undefined behavior**, which in
+practice means "whatever byte pattern happens to sit past the buffer gets
+overwritten," including saved return addresses on the stack. This is the
+class of bug behind the 1988 Morris worm's spread through Unix network
+daemons, and it's fixed by the boring, unglamorous fix: check the length
+against the destination's capacity before the copy, every time, with no
+exceptions carved out for "this input is trusted."
+
+```c
+if (user_data_len > sizeof(buf)) { /* reject or truncate */ }
+memcpy(buf, user_data, user_data_len);
+```
+
+### 9.2 Trusting a length field instead of the buffer that backs it
+
+```c
+/* attacker-controlled: claims a 64000-byte payload, buffer is actually 3 bytes */
+memcpy(response, request->payload, request->claimed_length);
+```
+
+A specific, more insidious variant of §9.1: the *length* comes from the
+same untrusted input as the *data*, so validating "is this a well-formed
+message" isn't enough — the claimed length has to be checked against the
+size of the buffer that actually backs the payload, independently. This
+is the shape of the 2014 OpenSSL Heartbleed bug: a length field taken at
+face value let a small request read arbitrary adjacent memory back to the
+caller. The general rule for any `C_ARKlight`-emitted parser/serializer:
+never let one field from an untrusted source dictate how many bytes get
+read from or written into a buffer sized by a *different* source.
+
+### 9.3 Use-after-free
+
+```c
+Node *n = malloc(sizeof(Node));
+...
+free(n);
+...
+n->next = other;   /* n's memory may be reused by something else by now */
+```
+
+Freeing memory doesn't erase the pointer that pointed to it — it only
+tells the allocator the memory is available for reuse. Any code path that
+still holds and dereferences that stale pointer is reading or writing
+through memory that may now belong to a completely unrelated object; this
+was the shape of a well-known 2013 Internet Explorer vulnerability, where
+a freed DOM object was still reachable and dereferenceable from elsewhere
+in the engine's internal state. The structural fix, not just a habit: set
+freed pointers to `NULL` immediately after `free()`, and — more
+robustly — never let more than one owner hold a raw pointer to the same
+heap object across a `free()` boundary in the first place (this is
+exactly what §3's arena/refcounting discussion is *for*).
+
+### 9.4 Double free
+
+```c
+free(p);
+...
+free(p);   /* undefined behavior: corrupts the allocator's internal bookkeeping */
+```
+
+Freeing the same pointer twice doesn't just risk a crash — it corrupts
+the heap allocator's own internal free-list metadata, which downstream
+can be steered into writing attacker-chosen values to attacker-chosen
+addresses. It's a narrower case of §9.3's underlying problem (an object
+with more than one path to its own destruction), and the same fix
+applies: a single, unambiguous owner responsible for the one `free()`
+call, enforced by construction rather than by convention.
+
+### 9.5 Off-by-one errors, especially around string termination
+
+```c
+char name[16];
+strncpy(name, input, 16);   /* if input is exactly 16 bytes, no NUL is ever written */
+strlen(name);               /* reads past the buffer looking for a terminator that isn't there */
+```
+
+C strings are NUL-terminated by convention, not by the type system — a
+16-byte buffer holding a 16-byte string has room for the string but not
+the terminator, and every function that expects `char*` to mean
+"NUL-terminated" will walk straight off the end looking for one. This is
+the single most common source of a one-byte-short buffer overflow, and
+it compounds with §9.1: the fix isn't "use a bigger buffer," it's
+budgeting the terminator as part of the required capacity everywhere a
+string's length is computed, including in generated code that stitches
+fragments together (exactly the kind of string assembly `backends/html`
+and `backends/js` already do — see §5.1).
+
+### 9.6 What this means for `C_ARKlight`'s codegen, specifically
+
+[C] None of §§9.1-9.5 are new information — they're the standard "C is
+sharp" list. What's specific to `C_ARKlight` is that a codegen backend
+turns each of these from a per-instance human mistake into a
+*template-level* one: get a fragment-emission helper wrong once in
+`backends/html` or `backends/js`, and the bug isn't in one `.c` file, it's
+in every site `C_ARKlight` ever builds with that helper. That argues for
+a narrower, more mechanical policy than "write careful C":
+
+- Every buffer the codegen emits should carry its capacity alongside the
+  pointer at the call site (the `ArkBuf`-style pattern §8.5 already notes
+  is shared between the HTML/JS backends), so §9.1/§9.2-style checks are
+  a property of the shared buffer helper, not something each fragment
+  template has to remember to do itself.
+- Ownership of any heap-allocated IR/AST node built during a
+  `arklight build` pass should default to the arena pattern from §3
+  rather than manual `malloc`/`free` pairing — it doesn't just simplify
+  cleanup, it structurally removes §9.3/§9.4 as a *possible* bug class
+  for anything allocated through it, rather than relying on discipline.
+- Any place `C_ARKlight` generates code that assembles or copies strings
+  (fragment concatenation in `backends/html`/`backends/js`, per §5.1)
+  should compute required capacity as `content_length + 1` as a fixed
+  rule, not as a case-by-case judgment call, closing off §9.5 the same
+  structural way.
+
+The common thread across all three: each of §§9.1-9.5 is avoidable by an
+individual careful C programmer, but "be careful" doesn't scale to a code
+generator producing many fragments from many templates. The actual
+mitigation is architectural — push the check into the one shared helper
+every emitted fragment routes through — which is the same lesson §8.5
+already drew from TCC's own internals, just applied to memory safety
+specifically instead of code-reuse generally.
+
+---
+
+## 10. Net takeaway
 
 Every high-level abstraction is a compiler doing bookkeeping you'd
 otherwise do by hand in C — vtables for dispatch, hoisted locals for
